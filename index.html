@@ -307,7 +307,7 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
           <button class="mini-btn" onclick="saveIssuerProfile()">บันทึกข้อมูลผู้ออก</button>
         </div>
         <div class="panel-body">
-          <div class="hint">กรอกข้อมูลบริษัท/ผู้ออกครั้งเดียว แล้วกด <b>บันทึกข้อมูลผู้ออก</b> ระบบจะจำไว้ในเครื่องนี้ (ไม่ถูกฝังในโค้ด)</div>
+          <div class="hint">กรอกครั้งเดียว กด <b>บันทึกข้อมูลผู้ออก</b> ระบบจำไว้ในเครื่องนี้ — ถ้าอยากให้ขึ้นเองทุกเครื่อง ไปที่ <b>Sync (Sheet)</b> แล้วกด "บันทึกข้อมูลผู้ออกขึ้น Sheet" (ครั้งเดียว)</div>
           <div class="field"><label>ชื่อบริษัท / ผู้ออก</label><input id="s_name" oninput="render()" placeholder="ชื่อบริษัทหรือผู้ออกเอกสาร"></div>
           <div class="field"><label>เลขประจำตัวผู้เสียภาษี (ผู้ออก)</label><input id="s_tax" oninput="render()" placeholder="เลข 13 หลัก"></div>
           <div class="row2">
@@ -478,6 +478,9 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
       <div style="display:flex;flex-direction:column;gap:9px">
         <button class="btn" style="justify-content:flex-start" onclick="pushToSheet()">⬆️ ส่งข้อมูลขึ้น Sheet (push)</button>
         <button class="btn" style="justify-content:flex-start" onclick="pullFromSheet()">⬇️ ดึงข้อมูลจาก Sheet (pull)</button>
+        <div class="divider"></div>
+        <button class="btn" style="justify-content:flex-start" onclick="saveIssuerToSheet()">🏢 บันทึกข้อมูลผู้ออก/บัญชี ขึ้น Sheet</button>
+        <button class="btn" style="justify-content:flex-start" onclick="fetchIssuerFromSheet(true).then(function(ok){setSyncStatus(ok?'ดึงข้อมูลผู้ออกมาให้แล้ว ✓':'ยังไม่มีข้อมูลผู้ออกบน Sheet', ok?'ok':'err')})">🔄 ดึงข้อมูลผู้ออก/บัญชี จาก Sheet</button>
       </div>
       <div id="syncStatus" style="margin-top:12px;font-size:12.5px;color:var(--ink-soft);min-height:18px"></div>
     </div>
@@ -845,13 +848,10 @@ function today(){ return new Date().toISOString().slice(0,10); }
 const SYNC_URL_KEY = 'billing_sync_url_v1';
 const SYNC_TOKEN_KEY = 'billing_sync_token_v1';
 const ISSUER_KEY = 'billing_issuer_v1';
-function saveIssuerProfile(){
-  const p = {name:val('s_name'),tax:val('s_tax'),phone:val('s_phone'),fax:val('s_fax'),email:val('s_email'),signer:val('s_signer'),pay:val('t_pay')};
-  localStorage.setItem(ISSUER_KEY, JSON.stringify(p));
-  alert('บันทึกข้อมูลผู้ออกเรียบร้อย ✓ (จำไว้ในเครื่องนี้)');
+function currentIssuer(){
+  return {name:val('s_name'),tax:val('s_tax'),phone:val('s_phone'),fax:val('s_fax'),email:val('s_email'),signer:val('s_signer'),pay:val('t_pay')};
 }
-function loadIssuerProfile(){
-  let p; try{ p = JSON.parse(localStorage.getItem(ISSUER_KEY)); }catch(e){ p=null; }
+function applyIssuer(p){
   if(!p) return;
   if(p.name!==undefined) document.getElementById('s_name').value=p.name;
   if(p.tax!==undefined) document.getElementById('s_tax').value=p.tax;
@@ -860,6 +860,44 @@ function loadIssuerProfile(){
   if(p.email!==undefined) document.getElementById('s_email').value=p.email;
   if(p.signer!==undefined) document.getElementById('s_signer').value=p.signer;
   if(p.pay!==undefined) document.getElementById('t_pay').value=p.pay;
+}
+function saveIssuerProfile(){
+  const p = currentIssuer();
+  localStorage.setItem(ISSUER_KEY, JSON.stringify(p));
+  alert('บันทึกข้อมูลผู้ออกเรียบร้อย ✓ (จำไว้ในเครื่องนี้)');
+}
+function loadIssuerProfile(){
+  let p; try{ p = JSON.parse(localStorage.getItem(ISSUER_KEY)); }catch(e){ p=null; }
+  applyIssuer(p);
+}
+function issuerIsEmpty(){
+  const p = currentIssuer();
+  return !p.name && !p.tax && !p.phone && !p.email && !p.signer && !p.pay;
+}
+// บันทึกข้อมูลผู้ออกขึ้น Sheet (กดครั้งเดียวตอนตั้งค่าครั้งแรก)
+async function saveIssuerToSheet(){
+  setSyncStatus('กำลังบันทึกข้อมูลผู้ออกขึ้น Sheet...', '');
+  try{
+    await callSheet('saveIssuer', currentIssuer());
+    localStorage.setItem(ISSUER_KEY, JSON.stringify(currentIssuer())); // เก็บในเครื่องด้วย
+    setSyncStatus('บันทึกข้อมูลผู้ออกขึ้น Sheet เรียบร้อย ✓ ทุกเครื่องที่เชื่อมต่อจะได้ข้อมูลนี้', 'ok');
+  }catch(e){ setSyncStatus('บันทึกไม่สำเร็จ: ' + e.message, 'err'); }
+}
+// ดึงข้อมูลผู้ออกจาก Sheet มาเติม (เรียกอัตโนมัติเมื่อเชื่อมต่อสำเร็จ)
+async function fetchIssuerFromSheet(force){
+  try{
+    const r = await callSheet('getIssuer', {});
+    if(r && r.issuer && (r.issuer.name || r.issuer.tax || r.issuer.pay)){
+      // เติมเฉพาะเมื่อช่องยังว่าง (ไม่ทับสิ่งที่ผู้ใช้กำลังแก้) เว้นแต่สั่ง force
+      if(force || issuerIsEmpty()){
+        applyIssuer(r.issuer);
+        localStorage.setItem(ISSUER_KEY, JSON.stringify(r.issuer));
+        render();
+        return true;
+      }
+    }
+  }catch(e){ /* เงียบไว้ ไม่รบกวนผู้ใช้ */ }
+  return false;
 }
 function getSyncUrl(){ return localStorage.getItem(SYNC_URL_KEY) || ''; }
 function getSyncToken(){ return localStorage.getItem(SYNC_TOKEN_KEY) || ''; }
@@ -908,7 +946,8 @@ async function testSync(){
   setSyncStatus('กำลังทดสอบ...', '');
   try{
     const r = await callSheet('ping', {});
-    setSyncStatus('เชื่อมต่อสำเร็จ ✓ ' + (r.message||''), 'ok');
+    const got = await fetchIssuerFromSheet(false); // ดึงข้อมูลผู้ออกถ้าช่องยังว่าง
+    setSyncStatus('เชื่อมต่อสำเร็จ ✓ ' + (r.message||'') + (got ? ' · ดึงข้อมูลผู้ออกมาให้แล้ว' : ''), 'ok');
   }catch(e){ setSyncStatus('เชื่อมต่อไม่สำเร็จ: ' + e.message, 'err'); }
 }
 async function pushToSheet(){
@@ -1172,6 +1211,8 @@ function init(){
   refreshRefDocPicker();
   updateSyncBadge();
   loadIssuerProfile();
+  // ถ้าเชื่อม Sheet ไว้แล้ว และข้อมูลผู้ออกในเครื่องยังว่าง → ดึงจาก Sheet อัตโนมัติ
+  if(getSyncUrl() && issuerIsEmpty()){ fetchIssuerFromSheet(false); }
   document.getElementById('d_ref').value = peekNextRef();
   document.getElementById('t_pay').addEventListener('input',render);
   render();
