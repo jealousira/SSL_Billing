@@ -145,6 +145,7 @@ textarea{resize:vertical;min-height:54px}
   width:210mm;min-height:297mm;background:#fff;margin:0 auto;
   padding:14mm 13mm;color:#111;font-family:'Sarabun';font-size:11pt;
   box-shadow:0 4px 18px rgba(0,0,0,.14);transform-origin:top center;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
 }
 .doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border-bottom:2px solid var(--accent);padding-bottom:8px}
 .doc-company{max-width:58%}
@@ -208,6 +209,8 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
 @media print{
   @page{size:A4;margin:0}
   body{background:#fff}
+  /* บังคับให้พิมพ์สีพื้นหลัง (หัวตาราง/ยอดรวมสีน้ำเงิน) ออกมาด้วย */
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important}
   .app-shell{padding:0;max-width:none}
   .topbar,.layout > .panel,.paper-scroll{all:unset}
   .topbar,.editor-col{display:none !important}
