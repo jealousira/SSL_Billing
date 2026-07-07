@@ -26,6 +26,7 @@
 body.theme-quotation{--accent:#1f4e79;--accent-soft:#e8eef5}        /* น้ำเงิน */
 body.theme-billing{--accent:#c05a1e;--accent-soft:#fceee3}          /* ส้ม */
 body.theme-receipt{--accent:#1f8ba8;--accent-soft:#e4f4f8}         /* ฟ้าอ่อน */
+body.theme-po{--accent:#2f7d4f;--accent-soft:#e6f3ec}              /* เขียว (ใบสั่งซื้อ) */
 *{box-sizing:border-box;margin:0;padding:0}
 body{
   font-family:'Sarabun',sans-serif;
@@ -272,11 +273,12 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
             <button data-type="quotation" class="active" onclick="setDocType('quotation')">ใบเสนอราคา</button>
             <button data-type="billing" onclick="setDocType('billing')">ใบวางบิล/<br>ใบแจ้งหนี้</button>
             <button data-type="receipt" onclick="setDocType('receipt')">ใบกำกับภาษี/ใบเสร็จ</button>
+            <button data-type="po" onclick="setDocType('po')">ใบสั่งซื้อ (PO)</button>
           </div>
         </div>
       </div>
 
-      <div class="panel" style="margin-bottom:18px">
+      <div class="panel" id="customerPanel" style="margin-bottom:18px">
         <div class="panel-head"><h2>ข้อมูลลูกค้า</h2></div>
         <div class="panel-body">
           <div class="hint">เลือกลูกค้าเดิมจาก <b>ฐานลูกค้า</b> หรือกรอกใหม่ด้านล่าง — กดปุ่ม <b>บันทึกลูกค้า</b> เพื่อจำไว้ใช้ครั้งหน้า</div>
@@ -300,6 +302,37 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
           <div class="row2">
             <div class="field"><label>โทรศัพท์</label><input id="c_phone" oninput="render()" placeholder="-"></div>
             <div class="field"><label>อีเมล</label><input id="c_email" oninput="render()" placeholder="-"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="supplierPanel" style="margin-bottom:18px;display:none">
+        <div class="panel-head">
+          <h2>ข้อมูลซัพพลายเออร์ (ผู้ขาย)</h2>
+          <button class="mini-btn" onclick="saveCurrentSupplier()">บันทึกซัพพลายเออร์</button>
+        </div>
+        <div class="panel-body">
+          <div class="hint">สำหรับใบสั่งซื้อ (PO) — เลือกซัพพลายเออร์ที่บันทึกไว้ หรือกรอกใหม่ แล้วกด <b>บันทึกซัพพลายเออร์</b> เพื่อจำไว้ใช้ครั้งหน้า</div>
+          <div class="field">
+            <div class="cust-picker">
+              <div>
+                <label>ซัพพลายเออร์ที่บันทึกไว้</label>
+                <select id="suppSelect" onchange="loadSupplier(this.value)">
+                  <option value="">— กรอกซัพพลายเออร์ใหม่ —</option>
+                </select>
+              </div>
+              <button class="mini-btn" onclick="openSuppliers()">รายการ</button>
+            </div>
+          </div>
+          <div class="field"><label>ชื่อซัพพลายเออร์ / บริษัท</label><input id="sp_name" oninput="render()" placeholder="เช่น บริษัท ยูคิว จำกัด"></div>
+          <div class="field"><label>ที่อยู่</label><textarea id="sp_addr" oninput="render()" placeholder="ที่อยู่ซัพพลายเออร์"></textarea></div>
+          <div class="row2">
+            <div class="field"><label>เลขผู้เสียภาษี</label><input id="sp_tax" oninput="render()" placeholder="-"></div>
+            <div class="field"><label>ผู้ติดต่อ</label><input id="sp_contact" oninput="render()" placeholder="ชื่อผู้ติดต่อ"></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label>โทรศัพท์</label><input id="sp_phone" oninput="render()" placeholder="-"></div>
+            <div class="field"><label>อีเมล</label><input id="sp_email" oninput="render()" placeholder="-"></div>
           </div>
         </div>
       </div>
@@ -390,6 +423,13 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
             <div class="field"><label>เครดิต</label><input id="t_credit" oninput="render()" value="สด"></div>
           </div>
           <div class="field"><label>ช่องทางการชำระเงิน</label><textarea id="t_pay" placeholder="เช่น ธนาคาร ... เลขที่บัญชี ... / ชื่อบัญชี ..."></textarea></div>
+          <div id="poFields" style="display:none">
+            <div class="divider"></div>
+            <div class="section-label">ข้อมูลเฉพาะใบสั่งซื้อ (PO)</div>
+            <div class="field"><label>วันที่ต้องการรับของ</label><input id="po_delivery_date" type="date" oninput="render()"></div>
+            <div class="field"><label>สถานที่ส่งมอบ</label><textarea id="po_delivery_place" oninput="render()" placeholder="ที่อยู่สำหรับจัดส่งสินค้า"></textarea></div>
+            <div class="field"><label>เงื่อนไขการชำระเงิน</label><input id="po_payment_terms" oninput="render()" placeholder="เช่น เครดิต 30 วัน / ชำระเมื่อรับของ"></div>
+          </div>
         </div>
       </div>
 
@@ -437,6 +477,16 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
       <button class="btn btn-ghost" onclick="closeCustomers()">✕ ปิด</button>
     </div>
     <div class="modal-body" id="custList"></div>
+  </div>
+</div>
+
+<div class="modal-back" id="suppModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>ฐานข้อมูลซัพพลายเออร์</h3>
+      <button class="btn btn-ghost" onclick="closeSuppliers()">✕ ปิด</button>
+    </div>
+    <div class="modal-body" id="suppList"></div>
   </div>
 </div>
 
@@ -497,7 +547,7 @@ const PROD_KEY = 'billing_products_v1';
 const SIG_KEY = 'billing_signature_v1';
 const SEQ_KEY = 'billing_sequences_v1';
 const DOCS_KEY = 'billing_documents_v1';
-const DOC_PREFIX = { quotation:'QT', billing:'INV', receipt:'RC' };
+const DOC_PREFIX = { quotation:'QT', billing:'INV', receipt:'RC', po:'PO' };
 let savedDocs = [];
 let refDocNo = '';   // เลขอ้างอิงที่เลือก (เช่น ใบวางบิลอ้างอิง QT)
 let customers = [];
@@ -509,8 +559,11 @@ let signatureData = '';
 const DOC_TITLES = {
   quotation: 'ใบเสนอราคา',
   billing: 'ใบวางบิล / ใบแจ้งหนี้',
-  receipt: 'ใบกำกับภาษี / ใบเสร็จรับเงิน'
+  receipt: 'ใบกำกับภาษี / ใบเสร็จรับเงิน',
+  po: 'ใบสั่งซื้อ / Purchase Order'
 };
+const SUPP_KEY = 'billing_suppliers_v1';
+let suppliers = [];
 
 /* ============ THAI BAHT TEXT ============ */
 function bahtText(num){
@@ -598,6 +651,10 @@ function setDocType(t){
   document.body.className = 'theme-' + t;
   document.querySelectorAll('#doctype button').forEach(b=>b.classList.toggle('active',b.dataset.type===t));
   refDocNo = '';
+  const isPO = (t==='po');
+  document.getElementById('customerPanel').style.display = isPO ? 'none' : '';
+  document.getElementById('supplierPanel').style.display = isPO ? '' : 'none';
+  document.getElementById('poFields').style.display = isPO ? '' : 'none';
   refreshRefDocPicker();
   fillNextRef();
   render();
@@ -609,15 +666,20 @@ function loadDocs(){
 }
 function persistDocs(){ localStorage.setItem(DOCS_KEY, JSON.stringify(savedDocs)); }
 function snapshotCurrentDoc(){
+  const isPO = (docType==='po');
+  const party = isPO ? {
+      name:val('sp_name'), addr:val('sp_addr'), tax:val('sp_tax'),
+      contact:val('sp_contact'), phone:val('sp_phone'), email:val('sp_email')
+    } : {
+      name:val('c_name'), addr:val('c_addr'), tax:val('c_tax'),
+      contact:val('c_contact'), phone:val('c_phone'), email:val('c_email')
+    };
   return {
     ref: document.getElementById('d_ref').value.trim(),
     type: docType,
     date: document.getElementById('d_date').value,
     refDocNo: refDocNo,
-    customer: {
-      name:val('c_name'), addr:val('c_addr'), tax:val('c_tax'),
-      contact:val('c_contact'), phone:val('c_phone'), email:val('c_email')
-    },
+    customer: party,
     items: items.map(it=>({desc:it.desc, qty:it.qty, price:it.price}))
   };
 }
@@ -632,7 +694,7 @@ function saveCurrentDoc(){
 function refreshRefDocPicker(){
   const field = document.getElementById('refDocField');
   const sel = document.getElementById('refDocSelect');
-  if(docType==='quotation'){ field.style.display='none'; return; }
+  if(docType==='quotation' || docType==='po'){ field.style.display='none'; return; }
   field.style.display='block';
   // ใบวางบิล อ้างอิงจาก QT ; ใบเสร็จ อ้างอิงจาก QT หรือ INV
   const allowTypes = docType==='billing' ? ['quotation'] : ['quotation','billing'];
@@ -744,12 +806,70 @@ function delCustomer(i){
   if(!confirm('ลบลูกค้า "'+customers[i].name+'" ?')) return;
   customers.splice(i,1); persist(); refreshCustSelect(); renderCustList();
 }
+
+/* ============ SUPPLIERS (สำหรับ PO) ============ */
+function loadSuppliers(){
+  try{ suppliers = JSON.parse(localStorage.getItem(SUPP_KEY)) || []; }catch(e){ suppliers = []; }
+  refreshSuppSelect();
+}
+function persistSuppliers(){ localStorage.setItem(SUPP_KEY, JSON.stringify(suppliers)); }
+function refreshSuppSelect(){
+  const sel = document.getElementById('suppSelect');
+  if(!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— กรอกซัพพลายเออร์ใหม่ —</option>' +
+    suppliers.map((s,i)=>`<option value="${i}">${escapeHtml(s.name||'(ไม่มีชื่อ)')}</option>`).join('');
+  sel.value = cur;
+}
+function loadSupplier(idx){
+  if(idx==='') return;
+  const s = suppliers[idx]; if(!s) return;
+  sp_name.value=s.name||''; sp_addr.value=s.addr||''; sp_tax.value=s.tax||'';
+  sp_contact.value=s.contact||''; sp_phone.value=s.phone||''; sp_email.value=s.email||'';
+  render();
+}
+function saveCurrentSupplier(){
+  const name = sp_name.value.trim();
+  if(!name){ alert('กรุณากรอกชื่อซัพพลายเออร์ก่อนบันทึก'); return; }
+  const data = {name, addr:sp_addr.value, tax:sp_tax.value, contact:sp_contact.value, phone:sp_phone.value, email:sp_email.value};
+  const existing = suppliers.findIndex(s=>s.name.trim()===name);
+  if(existing>=0){
+    if(confirm('มีซัพพลายเออร์ชื่อนี้อยู่แล้ว ต้องการอัปเดตข้อมูลหรือไม่?')) suppliers[existing]=data;
+    else return;
+  } else { suppliers.push(data); }
+  persistSuppliers(); refreshSuppSelect();
+  alert('บันทึกซัพพลายเออร์เรียบร้อย ✓');
+}
+function openSuppliers(){ renderSuppList(); document.getElementById('suppModal').classList.add('show'); }
+function closeSuppliers(){ document.getElementById('suppModal').classList.remove('show'); }
+function renderSuppList(){
+  const el = document.getElementById('suppList');
+  if(suppliers.length===0){ el.innerHTML='<div class="empty">ยังไม่มีซัพพลายเออร์ในฐานข้อมูล<br>กรอกข้อมูลแล้วกด “บันทึกซัพพลายเออร์”</div>'; return; }
+  el.innerHTML = suppliers.map((s,i)=>`
+    <div class="cust-row">
+      <div class="info">
+        <b>${escapeHtml(s.name)}</b>
+        <small>${escapeHtml(s.addr||'-')}</small>
+        <small>${escapeHtml(s.phone||'-')} · ${escapeHtml(s.email||'-')}</small>
+      </div>
+      <div class="acts">
+        <button class="mini-btn" onclick="useSupplier(${i})">ใช้</button>
+        <button class="mini-btn" style="color:var(--danger)" onclick="delSupplier(${i})">ลบ</button>
+      </div>
+    </div>`).join('');
+}
+function useSupplier(i){ document.getElementById('suppSelect').value=i; loadSupplier(i); closeSuppliers(); }
+function delSupplier(i){
+  if(!confirm('ลบซัพพลายเออร์ "'+suppliers[i].name+'" ?')) return;
+  suppliers.splice(i,1); persistSuppliers(); refreshSuppSelect(); renderSuppList();
+}
 function exportData(){
   const backup = {
     version: 2,
     exportedAt: new Date().toISOString().slice(0,10),
     customers: customers,
     products: products,
+    suppliers: suppliers,
     documents: savedDocs,
     sequences: loadSequences(),
     signature: signatureData || ''
@@ -774,10 +894,11 @@ function importData(ev){
           alert('นำเข้าลูกค้าเรียบร้อย ✓');
         }
       } else if(data && typeof data==='object'){
-        const cC=(data.customers||[]).length, pC=(data.products||[]).length, dC=(data.documents||[]).length;
-        if(confirm(`นำเข้าข้อมูลสำรอง?\nลูกค้า ${cC} · สินค้า ${pC} · เอกสาร ${dC}\n(จะรวมกับข้อมูลเดิม)`)){
+        const cC=(data.customers||[]).length, pC=(data.products||[]).length, dC=(data.documents||[]).length, sC=(data.suppliers||[]).length;
+        if(confirm(`นำเข้าข้อมูลสำรอง?\nลูกค้า ${cC} · สินค้า ${pC} · ซัพพลายเออร์ ${sC} · เอกสาร ${dC}\n(จะรวมกับข้อมูลเดิม)`)){
           (data.customers||[]).forEach(d=>{ if(!customers.find(c=>c.name===d.name)) customers.push(d); });
           (data.products||[]).forEach(d=>{ if(!products.find(p=>p.desc===d.desc)) products.push(d); });
+          (data.suppliers||[]).forEach(d=>{ if(!suppliers.find(s=>s.name===d.name)) suppliers.push(d); });
           (data.documents||[]).forEach(d=>{ if(!savedDocs.find(x=>x.ref===d.ref)) savedDocs.push(d); });
           if(data.sequences){
             const cur=loadSequences();
@@ -785,8 +906,8 @@ function importData(ev){
             localStorage.setItem(SEQ_KEY, JSON.stringify(cur));
           }
           if(data.signature && !signatureData){ setSignature(data.signature); }
-          persist(); persistProducts(); persistDocs();
-          refreshCustSelect(); refreshProdSelect(); refreshRefDocPicker();
+          persist(); persistProducts(); persistSuppliers(); persistDocs();
+          refreshCustSelect(); refreshProdSelect(); refreshSuppSelect(); refreshRefDocPicker();
           alert('นำเข้าข้อมูลสำรองเรียบร้อย ✓');
         }
       } else { throw new Error(); }
@@ -829,7 +950,7 @@ function exportProductsCsv(){
 }
 function exportDocsCsv(){
   if(savedDocs.length===0){ alert('ยังไม่มีเอกสารที่บันทึก (เอกสารจะถูกบันทึกเมื่อกดพิมพ์ PDF)'); return; }
-  const typeName = {quotation:'ใบเสนอราคา',billing:'ใบวางบิล/ใบแจ้งหนี้',receipt:'ใบกำกับภาษี/ใบเสร็จ'};
+  const typeName = {quotation:'ใบเสนอราคา',billing:'ใบวางบิล/ใบแจ้งหนี้',receipt:'ใบกำกับภาษี/ใบเสร็จ',po:'ใบสั่งซื้อ (PO)'};
   const header = ['เลขที่เอกสาร','ประเภท','วันที่','อ้างอิงจาก','ลูกค้า','เลขผู้เสียภาษี','ลำดับ','รายการ','จำนวน','ราคา/หน่วย','รวม'];
   const rows = [];
   savedDocs.forEach(d=>{
@@ -960,6 +1081,7 @@ async function pushToSheet(){
     await callSheet('push', {
       customers: customers,
       products: products,
+      suppliers: suppliers,
       documents: savedDocs,
       sequences: loadSequences()
     });
@@ -973,15 +1095,16 @@ async function pullFromSheet(){
     const data = await callSheet('pull', {});
     (data.customers||[]).forEach(d=>{ if(!customers.find(c=>c.name===d.name)) customers.push(d); });
     (data.products||[]).forEach(d=>{ if(!products.find(p=>p.desc===d.desc)) products.push(d); });
+    (data.suppliers||[]).forEach(d=>{ if(!suppliers.find(s=>s.name===d.name)) suppliers.push(d); });
     (data.documents||[]).forEach(d=>{ if(!savedDocs.find(x=>x.ref===d.ref)) savedDocs.push(d); });
     if(data.sequences){
       const cur=loadSequences();
       for(const k in data.sequences){ cur[k]=Math.max(cur[k]||0, data.sequences[k]); }
       localStorage.setItem(SEQ_KEY, JSON.stringify(cur));
     }
-    persist(); persistProducts(); persistDocs();
-    refreshCustSelect(); refreshProdSelect(); refreshRefDocPicker();
-    setSyncStatus('ดึงข้อมูลเรียบร้อย ✓ ลูกค้า '+(data.customers||[]).length+' · สินค้า '+(data.products||[]).length+' · เอกสาร '+(data.documents||[]).length, 'ok');
+    persist(); persistProducts(); persistSuppliers(); persistDocs();
+    refreshCustSelect(); refreshProdSelect(); refreshSuppSelect(); refreshRefDocPicker();
+    setSyncStatus('ดึงข้อมูลเรียบร้อย ✓ ลูกค้า '+(data.customers||[]).length+' · สินค้า '+(data.products||[]).length+' · ซัพพลายเออร์ '+(data.suppliers||[]).length+' · เอกสาร '+(data.documents||[]).length, 'ok');
   }catch(e){ setSyncStatus('ดึงไม่สำเร็จ: ' + e.message, 'err'); }
 }
 
@@ -1104,6 +1227,14 @@ function render(){
         <tr><th>ธนาคาร</th><th>เลขที่</th><th>วันที่</th><th class="r" style="text-align:right">จำนวนเงิน</th></tr>
         <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
       </table>`;
+  } else if(docType==='po'){
+    footerBlock = `
+      <div class="pay-box">
+        <div class="ph">รายละเอียดการสั่งซื้อ</div>
+        ${val('po_delivery_date') ? 'วันที่ต้องการรับของ : '+fmtDate(val('po_delivery_date'))+'<br>' : ''}
+        ${val('po_delivery_place') ? 'สถานที่ส่งมอบ : '+nl2br(val('po_delivery_place'))+'<br>' : ''}
+        ${val('po_payment_terms') ? 'เงื่อนไขการชำระเงิน : '+escapeHtml(val('po_payment_terms')) : ''}
+      </div>`;
   } else {
     footerBlock = `
       <div class="pay-box">
@@ -1112,12 +1243,25 @@ function render(){
       </div>`;
   }
 
-  const terms = (docType!=='receipt') ? `
+  // เงื่อนไข (ยืนราคา/ส่งมอบ/เครดิต) — ไม่แสดงในใบเสร็จและ PO
+  const terms = (docType!=='receipt' && docType!=='po') ? `
     <div class="terms">
       <div><b>ยืนราคา</b> ${escapeHtml(val('t_valid'))} วัน</div>
       <div><b>ส่งมอบ</b> ${escapeHtml(val('t_deliver'))} วัน</div>
       <div><b>เครดิต</b> ${escapeHtml(val('t_credit'))}</div>
     </div>` : '';
+
+  // PO ใช้ข้อมูลซัพพลายเออร์ในบล็อก "เรียน" และสลับ label เป็นผู้สั่งซื้อ
+  const isPO = (docType==='po');
+  const buyerName = isPO ? val('sp_name') : val('c_name');
+  const buyerAddr = isPO ? val('sp_addr') : val('c_addr');
+  const buyerTax  = isPO ? val('sp_tax')  : val('c_tax');
+  const buyerContact = isPO ? val('sp_contact') : val('c_contact');
+  const buyerPhone = isPO ? val('sp_phone') : val('c_phone');
+  const buyerEmail = isPO ? val('sp_email') : val('c_email');
+  const leftLabel  = isPO ? 'ผู้ขาย / Supplier' : 'เรียน / Customer';
+  const leftEmpty  = isPO ? '— ระบุชื่อซัพพลายเออร์ —' : '— ระบุชื่อลูกค้า —';
+  const rightLabel = isPO ? 'ผู้สั่งซื้อ / Buyer' : 'ผู้เสนอราคา / Issued by';
 
   document.getElementById('paper').innerHTML = `
     <div class="doc-head">
@@ -1139,20 +1283,21 @@ function render(){
 
     <div class="parties">
       <div class="party">
-        <div class="ph">เรียน / Customer</div>
-        <div class="name">${escapeHtml(val('c_name'))||'<span style="color:#bbb">— ระบุชื่อลูกค้า —</span>'}</div>
+        <div class="ph">${leftLabel}</div>
+        <div class="name">${escapeHtml(buyerName)||'<span style="color:#bbb">'+leftEmpty+'</span>'}</div>
         <div class="lines">
-          ${nl2br(val('c_addr'))}
-          ${val('c_tax') && val('c_tax')!=='-' ? '<br>เลขผู้เสียภาษี : '+escapeHtml(val('c_tax')) : ''}
-          ${val('c_contact') ? '<br>ผู้ติดต่อ : '+escapeHtml(val('c_contact')) : ''}
-          ${val('c_phone') && val('c_phone')!=='-' ? '<br>โทร : '+escapeHtml(val('c_phone')) : ''}
-          ${val('c_email') && val('c_email')!=='-' ? '<br>อีเมล : '+escapeHtml(val('c_email')) : ''}
+          ${nl2br(buyerAddr)}
+          ${buyerTax && buyerTax!=='-' ? '<br>เลขผู้เสียภาษี : '+escapeHtml(buyerTax) : ''}
+          ${buyerContact ? '<br>ผู้ติดต่อ : '+escapeHtml(buyerContact) : ''}
+          ${buyerPhone && buyerPhone!=='-' ? '<br>โทร : '+escapeHtml(buyerPhone) : ''}
+          ${buyerEmail && buyerEmail!=='-' ? '<br>อีเมล : '+escapeHtml(buyerEmail) : ''}
         </div>
       </div>
       <div class="party right">
-        <div class="ph">ผู้เสนอราคา / Issued by</div>
+        <div class="ph">${rightLabel}</div>
         <div class="name">${escapeHtml(val('s_name'))}</div>
         <div class="lines">
+          ${isPO && val('s_tax') ? 'เลขผู้เสียภาษี : '+escapeHtml(val('s_tax'))+'<br>' : ''}
           เบอร์มือถือ : ${escapeHtml(val('s_phone'))}<br>
           แฟกซ์ : ${escapeHtml(val('s_fax'))}<br>
           อีเมล : ${escapeHtml(val('s_email'))}
@@ -1187,10 +1332,10 @@ function render(){
     ${footerBlock}
 
     <div class="signs">
-      <div class="sign"><div class="ln"></div><div class="role">ผู้อนุมัติซื้อ</div></div>
+      <div class="sign"><div class="ln"></div><div class="role">${isPO ? 'ผู้จัดทำ' : 'ผู้อนุมัติซื้อ'}</div></div>
       <div class="sign">
         ${signatureData ? `<img class="sig-img" src="${signatureData}" alt="signature">` : ''}
-        <div class="ln"></div><div class="role">จัดทำโดย</div><div class="nm">${escapeHtml(val('s_signer'))}</div>
+        <div class="ln"></div><div class="role">${isPO ? 'ผู้สั่งซื้อ' : 'จัดทำโดย'}</div><div class="nm">${escapeHtml(val('s_signer'))}</div>
       </div>
       <div class="sign"><div class="ln"></div><div class="role">อนุมัติโดย</div></div>
     </div>
@@ -1208,6 +1353,7 @@ function init(){
   addItem('',1,0); // เริ่มด้วยรายการว่าง 1 แถว
   loadStore();
   loadProducts();
+  loadSuppliers();
   loadDocs();
   loadSignature();
   initSigPad();
