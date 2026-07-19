@@ -1269,7 +1269,6 @@ function render(){
     <div class="doc-head">
       <div class="doc-company">
         <div class="logo">${escapeHtml(val('s_name'))}</div>
-        ${val('s_addr') ? `<div class="tax">${nl2br(val('s_addr'))}</div>` : ''}
         <div class="tax">เลขประจำตัวผู้เสียภาษี : ${escapeHtml(val('s_tax'))}</div>
       </div>
       <div class="doc-title-box">
@@ -1300,7 +1299,7 @@ function render(){
         <div class="ph">${rightLabel}</div>
         <div class="name">${escapeHtml(val('s_name'))}</div>
         <div class="lines">
-          ${isPO && val('s_addr') ? nl2br(val('s_addr'))+'<br>' : ''}
+          ${val('s_addr') ? nl2br(val('s_addr'))+'<br>' : ''}
           ${isPO && val('s_tax') ? 'เลขผู้เสียภาษี : '+escapeHtml(val('s_tax'))+'<br>' : ''}
           เบอร์มือถือ : ${escapeHtml(val('s_phone'))}<br>
           แฟกซ์ : ${escapeHtml(val('s_fax'))}<br>
