@@ -86,7 +86,7 @@ textarea{resize:vertical;min-height:54px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 
-.doctype{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:4px}
+.doctype{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:4px}
 .doctype button{
   font-family:'Prompt';font-size:12px;font-weight:500;
   border:1px solid var(--line);background:#fbfcfe;border-radius:9px;
@@ -136,7 +136,6 @@ textarea{resize:vertical;min-height:54px}
 .cust-row .info b{font-family:'Prompt';font-size:13.5px;font-weight:600}
 .cust-row .info small{display:block;color:var(--ink-soft);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cust-row .acts{display:flex;gap:5px;flex:none}
-.tag{display:inline-block;font-size:10.5px;font-family:'Prompt';background:var(--accent-soft);color:var(--accent);padding:1px 7px;border-radius:20px;margin-left:6px;font-weight:500}
 .empty{text-align:center;color:var(--ink-soft);padding:30px 10px;font-size:13px}
 
 /* ---------- Document preview (A4) ---------- */
@@ -400,18 +399,9 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h2>ภาษี / ส่วนลด / เงื่อนไข</h2></div>
+        <div class="panel-head"><h2>ภาษี / เงื่อนไข</h2></div>
         <div class="panel-body">
-          <div class="field">
-            <label>ส่วนลด</label>
-            <div style="display:flex;gap:8px">
-              <input id="discount" type="text" inputmode="decimal" value="0" oninput="render()" style="flex:1">
-              <select id="discountType" onchange="render()" style="width:110px">
-                <option value="amount">บาท</option>
-                <option value="percent">%</option>
-              </select>
-            </div>
-          </div>
+          <div class="hint">ส่วนลดกำหนดรายชิ้นในแต่ละรายการสินค้าด้านบน (เลือกบาทหรือ % ได้)</div>
           <div class="field"><label>อัตรา VAT (%)</label><input id="vatRate" type="number" min="0" step="0.01" value="7" oninput="render()"></div>
           <div class="toggle-row">
             <label for="vatOn">คิดภาษีมูลค่าเพิ่ม (VAT)</label>
@@ -614,15 +604,39 @@ function fmt(n){
 }
 
 /* ============ ITEMS ============ */
-function addItem(desc='',qty=1,price=0){
-  items.push({desc,qty,price});
+function addItem(desc='',qty=1,price=0,disc=0,discType='amount'){
+  items.push({desc,qty,price,disc,discType});
   renderItemsEditor();
   render();
 }
 function delItem(i){ items.splice(i,1); renderItemsEditor(); render(); }
 function updItem(i,field,val){
-  items[i][field] = (field==='desc') ? val : (parseFloat(val)||0);
+  if(field==='desc' || field==='discType'){ items[i][field] = val; }
+  else { items[i][field] = parseFloat(val)||0; }
+  updateLineTotalDisplay(i);
   render();
+}
+// อัปเดตช่อง "มูลค่า" ของรายการนั้นแบบสด โดยไม่ re-render ทั้งบล็อก (กันโฟกัสหลุด)
+function updateLineTotalDisplay(i){
+  const editor = document.getElementById('itemsEditor');
+  if(!editor) return;
+  const blocks = editor.querySelectorAll('.litem');
+  if(!blocks[i]) return;
+  const totalInput = blocks[i].querySelector('input[readonly]');
+  if(totalInput) totalInput.value = fmt(lineTotal(items[i]));
+}
+// มูลค่าต่อรายการ = (จำนวน × ราคา) − ส่วนลดชิ้นนั้น (ส่วนลดเป็นบาทหรือ %)
+function lineDiscountAmt(it){
+  const gross = (it.qty||0)*(it.price||0);
+  const d = it.disc||0;
+  return (it.discType==='percent') ? gross*d/100 : d;
+}
+function lineTotal(it){
+  return Math.max(0, (it.qty||0)*(it.price||0) - lineDiscountAmt(it));
+}
+// คัดลอกรายการสินค้าให้มี field ครบ (ใช้ตอนบันทึก/ดึงเอกสาร)
+function cloneItems(list){
+  return (list||[]).map(it=>({desc:it.desc, qty:it.qty, price:it.price, disc:it.disc||0, discType:it.discType||'amount'}));
 }
 function renderItemsEditor(){
   const el = document.getElementById('itemsEditor');
@@ -639,7 +653,20 @@ function renderItemsEditor(){
       <textarea placeholder="ชื่อ + รายละเอียดสินค้า/บริการ" oninput="updItem(${i},'desc',this.value)">${escapeHtml(it.desc)}</textarea>
       <div class="row2">
         <div><label style="font-size:11px">จำนวน</label><input type="number" min="0" step="1" value="${it.qty}" oninput="updItem(${i},'qty',this.value)"></div>
-        <div><label style="font-size:11px">ราคา/หน่วย (บาท)</label><input type="number" min="0" step="0.01" value="${it.price}" oninput="updItem(${i},'price',this.value)"></div>
+        <div><label style="font-size:11px">ราคาต่อหน่วย (บาท)</label><input type="number" min="0" step="0.01" value="${it.price}" oninput="updItem(${i},'price',this.value)"></div>
+      </div>
+      <div class="row2" style="margin-top:7px">
+        <div>
+          <label style="font-size:11px">ส่วนลด</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" inputmode="decimal" value="${it.disc||0}" oninput="updItem(${i},'disc',this.value)" style="flex:1">
+            <select onchange="updItem(${i},'discType',this.value)" style="width:72px">
+              <option value="amount" ${it.discType!=='percent'?'selected':''}>บาท</option>
+              <option value="percent" ${it.discType==='percent'?'selected':''}>%</option>
+            </select>
+          </div>
+        </div>
+        <div><label style="font-size:11px">มูลค่า (บาท)</label><input type="text" value="${fmt(lineTotal(it))}" readonly style="background:#f2f4f7;color:var(--ink-soft)"></div>
       </div>
     </div>`).join('');
 }
@@ -681,7 +708,7 @@ function snapshotCurrentDoc(){
     date: document.getElementById('d_date').value,
     refDocNo: refDocNo,
     customer: party,
-    items: items.map(it=>({desc:it.desc, qty:it.qty, price:it.price}))
+    items: cloneItems(items)
   };
 }
 function saveCurrentDoc(){
@@ -712,7 +739,7 @@ function applyRefDoc(){
   c_name.value=d.customer.name||''; c_addr.value=d.customer.addr||''; c_tax.value=d.customer.tax||'';
   c_contact.value=d.customer.contact||''; c_phone.value=d.customer.phone||''; c_email.value=d.customer.email||'';
   // เติมรายการ
-  items = d.items.map(it=>({desc:it.desc, qty:it.qty, price:it.price}));
+  items = cloneItems(d.items);
   renderItemsEditor();
   refDocNo = ref;
   render();
@@ -864,6 +891,20 @@ function delSupplier(i){
   if(!confirm('ลบซัพพลายเออร์ "'+suppliers[i].name+'" ?')) return;
   suppliers.splice(i,1); persistSuppliers(); refreshSuppSelect(); renderSuppList();
 }
+// รวมข้อมูลที่รับเข้ามา (จากไฟล์สำรอง หรือจาก Sheet) เข้ากับข้อมูลในเครื่อง แบบไม่ซ้ำ
+function mergeIncomingData(data){
+  (data.customers||[]).forEach(d=>{ if(!customers.find(c=>c.name===d.name)) customers.push(d); });
+  (data.products||[]).forEach(d=>{ if(!products.find(p=>p.desc===d.desc)) products.push(d); });
+  (data.suppliers||[]).forEach(d=>{ if(!suppliers.find(s=>s.name===d.name)) suppliers.push(d); });
+  (data.documents||[]).forEach(d=>{ if(!savedDocs.find(x=>x.ref===d.ref)) savedDocs.push(d); });
+  if(data.sequences){
+    const cur=loadSequences();
+    for(const k in data.sequences){ cur[k]=Math.max(cur[k]||0, data.sequences[k]); }
+    localStorage.setItem(SEQ_KEY, JSON.stringify(cur));
+  }
+  persist(); persistProducts(); persistSuppliers(); persistDocs();
+  refreshCustSelect(); refreshProdSelect(); refreshSuppSelect(); refreshRefDocPicker();
+}
 function exportData(){
   const backup = {
     version: 2,
@@ -897,18 +938,8 @@ function importData(ev){
       } else if(data && typeof data==='object'){
         const cC=(data.customers||[]).length, pC=(data.products||[]).length, dC=(data.documents||[]).length, sC=(data.suppliers||[]).length;
         if(confirm(`นำเข้าข้อมูลสำรอง?\nลูกค้า ${cC} · สินค้า ${pC} · ซัพพลายเออร์ ${sC} · เอกสาร ${dC}\n(จะรวมกับข้อมูลเดิม)`)){
-          (data.customers||[]).forEach(d=>{ if(!customers.find(c=>c.name===d.name)) customers.push(d); });
-          (data.products||[]).forEach(d=>{ if(!products.find(p=>p.desc===d.desc)) products.push(d); });
-          (data.suppliers||[]).forEach(d=>{ if(!suppliers.find(s=>s.name===d.name)) suppliers.push(d); });
-          (data.documents||[]).forEach(d=>{ if(!savedDocs.find(x=>x.ref===d.ref)) savedDocs.push(d); });
-          if(data.sequences){
-            const cur=loadSequences();
-            for(const k in data.sequences){ cur[k]=Math.max(cur[k]||0, data.sequences[k]); }
-            localStorage.setItem(SEQ_KEY, JSON.stringify(cur));
-          }
+          mergeIncomingData(data);
           if(data.signature && !signatureData){ setSignature(data.signature); }
-          persist(); persistProducts(); persistSuppliers(); persistDocs();
-          refreshCustSelect(); refreshProdSelect(); refreshSuppSelect(); refreshRefDocPicker();
           alert('นำเข้าข้อมูลสำรองเรียบร้อย ✓');
         }
       } else { throw new Error(); }
@@ -944,7 +975,7 @@ function exportCustomersCsv(){
 }
 function exportProductsCsv(){
   if(products.length===0){ alert('ยังไม่มีข้อมูลสินค้าในคลัง'); return; }
-  const header = ['ชื่อ/รายละเอียดสินค้า','ราคา/หน่วย'];
+  const header = ['ชื่อ/รายละเอียดสินค้า','ราคาต่อหน่วย'];
   const rows = products.map(p=>[p.desc, p.price]);
   downloadCsv('products-'+today()+'.csv', csvRows([header,...rows]));
   closeCsvMenu();
@@ -952,15 +983,16 @@ function exportProductsCsv(){
 function exportDocsCsv(){
   if(savedDocs.length===0){ alert('ยังไม่มีเอกสารที่บันทึก (เอกสารจะถูกบันทึกเมื่อกดพิมพ์ PDF)'); return; }
   const typeName = {quotation:'ใบเสนอราคา',billing:'ใบวางบิล/ใบแจ้งหนี้',receipt:'ใบกำกับภาษี/ใบเสร็จ',po:'ใบสั่งซื้อ (PO)'};
-  const header = ['เลขที่เอกสาร','ประเภท','วันที่','อ้างอิงจาก','ลูกค้า','เลขผู้เสียภาษี','ลำดับ','รายการ','จำนวน','ราคา/หน่วย','รวม'];
+  const header = ['เลขที่เอกสาร','ประเภท','วันที่','อ้างอิงจาก','ลูกค้า','เลขผู้เสียภาษี','ลำดับ','รายการ','จำนวน','ราคาต่อหน่วย','ส่วนลด','มูลค่า'];
   const rows = [];
   savedDocs.forEach(d=>{
     const items = d.items && d.items.length ? d.items : [{desc:'',qty:0,price:0}];
     items.forEach((it,i)=>{
+      const discTxt = it.disc ? (it.discType==='percent' ? it.disc+'%' : it.disc) : '';
       rows.push([
         d.ref, typeName[d.type]||d.type, d.date||'', d.refDocNo||'',
         d.customer?.name||'', d.customer?.tax||'',
-        i+1, it.desc, it.qty, it.price, (it.qty*it.price)
+        i+1, it.desc, it.qty, it.price, discTxt, lineTotal(it)
       ]);
     });
   });
@@ -1095,17 +1127,7 @@ async function pullFromSheet(){
   setSyncStatus('กำลังดึงจาก Sheet...', '');
   try{
     const data = await callSheet('pull', {});
-    (data.customers||[]).forEach(d=>{ if(!customers.find(c=>c.name===d.name)) customers.push(d); });
-    (data.products||[]).forEach(d=>{ if(!products.find(p=>p.desc===d.desc)) products.push(d); });
-    (data.suppliers||[]).forEach(d=>{ if(!suppliers.find(s=>s.name===d.name)) suppliers.push(d); });
-    (data.documents||[]).forEach(d=>{ if(!savedDocs.find(x=>x.ref===d.ref)) savedDocs.push(d); });
-    if(data.sequences){
-      const cur=loadSequences();
-      for(const k in data.sequences){ cur[k]=Math.max(cur[k]||0, data.sequences[k]); }
-      localStorage.setItem(SEQ_KEY, JSON.stringify(cur));
-    }
-    persist(); persistProducts(); persistSuppliers(); persistDocs();
-    refreshCustSelect(); refreshProdSelect(); refreshSuppSelect(); refreshRefDocPicker();
+    mergeIncomingData(data);
     setSyncStatus('ดึงข้อมูลเรียบร้อย ✓ ลูกค้า '+(data.customers||[]).length+' · สินค้า '+(data.products||[]).length+' · ซัพพลายเออร์ '+(data.suppliers||[]).length+' · เอกสาร '+(data.documents||[]).length, 'ok');
   }catch(e){ setSyncStatus('ดึงไม่สำเร็จ: ' + e.message, 'err'); }
 }
@@ -1201,24 +1223,27 @@ function fmtDate(v){
   return d.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
 }
 function render(){
-  const subtotal = items.reduce((s,it)=>s + (it.qty*it.price),0);
-  const discountInput = parseFloat(String(discountEl().value).replace(/[^0-9.]/g,'')) || 0;
-  const discountType = document.getElementById('discountType').value;
-  const discount = discountType==='percent' ? subtotal * discountInput/100 : discountInput;
-  const afterDisc = Math.max(0, subtotal - discount);
+  // มูลค่ารวมก่อน VAT = ผลรวมของทุกรายการ (แต่ละรายการหักส่วนลดของตัวเองแล้ว)
+  const subtotal = items.reduce((s,it)=>s + lineTotal(it),0);
   const vatOn = document.getElementById('vatOn').checked;
   const vatRate = parseFloat(document.getElementById('vatRate').value)||0;
-  const vat = vatOn ? afterDisc * vatRate/100 : 0;
-  const total = afterDisc + vat;
+  const vat = vatOn ? subtotal * vatRate/100 : 0;
+  const total = subtotal + vat;
 
+  const discLabel = (it)=>{
+    if(!it.disc) return '<span style="color:#bbb">—</span>';
+    return it.discType==='percent' ? it.disc+'%' : fmt(it.disc);
+  };
   const itemRows = items.length ? items.map((it,i)=>`
     <tr>
       <td class="c">${i+1}</td>
       <td class="desc">${nl2br(it.desc)||'<span style="color:#bbb">—</span>'}</td>
       <td class="c">${it.qty}</td>
-      <td class="r">${fmt(it.qty*it.price)}</td>
+      <td class="r">${fmt(it.price)}</td>
+      <td class="r">${discLabel(it)}</td>
+      <td class="r">${fmt(lineTotal(it))}</td>
     </tr>`).join('') :
-    `<tr><td colspan="4" style="text-align:center;color:#bbb;padding:18px">— ยังไม่มีรายการ —</td></tr>`;
+    `<tr><td colspan="6" style="text-align:center;color:#bbb;padding:18px">— ยังไม่มีรายการ —</td></tr>`;
 
   // footer block differs by doc type
   let footerBlock='';
@@ -1311,10 +1336,12 @@ function render(){
     <table class="items">
       <thead>
         <tr>
-          <th class="c" style="width:9%">ลำดับ<br><span style="font-weight:400;font-size:8pt">Items</span></th>
+          <th class="c" style="width:7%">ลำดับ<br><span style="font-weight:400;font-size:8pt">Items</span></th>
           <th>รายละเอียด<br><span style="font-weight:400;font-size:8pt">Description</span></th>
-          <th class="c" style="width:14%">จำนวน<br><span style="font-weight:400;font-size:8pt">No. of Trans.</span></th>
-          <th class="r" style="width:20%">จำนวนเงิน<br><span style="font-weight:400;font-size:8pt">Amount</span></th>
+          <th class="c" style="width:10%">จำนวน<br><span style="font-weight:400;font-size:8pt">Qty</span></th>
+          <th class="r" style="width:15%">ราคาต่อหน่วย<br><span style="font-weight:400;font-size:8pt">Unit Price</span></th>
+          <th class="r" style="width:12%">ส่วนลด<br><span style="font-weight:400;font-size:8pt">Discount</span></th>
+          <th class="r" style="width:17%">มูลค่า<br><span style="font-weight:400;font-size:8pt">Amount</span></th>
         </tr>
       </thead>
       <tbody>${itemRows}</tbody>
@@ -1323,7 +1350,6 @@ function render(){
     <div class="totals">
       <table class="sum">
         <tr><td class="lbl">รวมเป็นเงิน</td><td class="val">${fmt(subtotal)}</td></tr>
-        ${discount>0 ? `<tr><td class="lbl">ส่วนลด${discountType==='percent'?' '+discountInput+'%':''}</td><td class="val">- ${fmt(discount)}</td></tr><tr><td class="lbl">หลังหักส่วนลด</td><td class="val">${fmt(afterDisc)}</td></tr>` : ''}
         ${vatOn ? `<tr><td class="lbl">ภาษีมูลค่าเพิ่ม ${vatRate}%</td><td class="val">${fmt(vat)}</td></tr>` : ''}
         <tr class="grand"><td class="lbl" style="color:#fff">จำนวนเงินรวมทั้งสิ้น</td><td class="val">${fmt(total)}</td></tr>
       </table>
@@ -1347,7 +1373,6 @@ function render(){
   `;
 }
 function val(id){ const e=document.getElementById(id); return e?e.value:''; }
-function discountEl(){ return document.getElementById('discount'); }
 
 /* ============ INIT ============ */
 function init(){
