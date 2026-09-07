@@ -105,6 +105,12 @@ textarea{resize:vertical;min-height:54px}
 
 .divider{height:1px;background:var(--line-soft);margin:16px 0}
 .section-label{font-family:'Prompt';font-size:12px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.tabbar{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:5px;margin-bottom:18px;box-shadow:var(--shadow);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tabbar button{flex:1;min-width:max-content;white-space:nowrap;font-family:'Prompt';font-size:13px;font-weight:500;border:none;background:transparent;color:var(--ink-soft);padding:9px 13px;border-radius:8px;cursor:pointer;transition:all .15s}
+.tabbar button.active{background:var(--accent);color:#fff;box-shadow:var(--shadow)}
+.tabbar button:hover:not(.active){background:var(--accent-soft);color:var(--accent)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 
 /* line items editor */
 .litem{border:1px solid var(--line-soft);border-radius:10px;padding:11px;margin-bottom:9px;background:#fbfcfe;position:relative}
@@ -140,11 +146,12 @@ textarea{resize:vertical;min-height:54px}
 
 /* ---------- Document preview (A4) ---------- */
 .preview-wrap{position:sticky;top:18px}
-.paper-scroll{background:#dfe4ec;border-radius:14px;padding:22px;overflow:auto;max-height:calc(100vh - 60px);box-shadow:inset 0 1px 4px rgba(0,0,0,.06)}
+.paper-scroll{background:#dfe4ec;border-radius:14px;padding:18px;overflow:hidden;box-shadow:inset 0 1px 4px rgba(0,0,0,.06)}
+.paper-fit{margin:0 auto;overflow:hidden}
 .paper{
-  width:210mm;min-height:297mm;background:#fff;margin:0 auto;
+  width:210mm;min-height:297mm;background:#fff;
   padding:14mm 13mm;color:#111;font-family:'Sarabun';font-size:11pt;
-  box-shadow:0 4px 18px rgba(0,0,0,.14);transform-origin:top center;
+  box-shadow:0 4px 18px rgba(0,0,0,.14);transform-origin:top left;
   -webkit-print-color-adjust:exact;print-color-adjust:exact;
 }
 .doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border-bottom:2px solid var(--accent);padding-bottom:8px}
@@ -204,8 +211,10 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
 .sign .role{font-family:'Prompt';font-weight:500;color:#555}
 .sign .nm{color:#333;margin-top:2px}
 .sign .sign-date{color:#666;margin-top:6px;font-size:9pt}
-.signs-delivery{gap:24px;margin-top:24px}
-.signs-delivery .sign{border:1px solid #d8dee9;border-radius:8px;padding:10px 12px 12px}
+.signs-delivery{gap:12px;margin-top:24px}
+.signs-delivery .sign{border:1px solid #d8dee9;border-radius:8px;padding:10px 8px 12px}
+.signs-delivery .sign .role{font-size:8.5pt}
+.signs-delivery .sign .sign-date{font-size:8pt}
 .signs-delivery .sign .ln{margin-top:40px}
 .signs-delivery .sign .sig-img{top:-16px}
 
@@ -223,10 +232,9 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
   .layout{display:block}
   .preview-wrap{position:static}
   .paper-scroll{background:none;padding:0;max-height:none;box-shadow:none;overflow:visible}
-  .paper{width:auto;min-height:auto;margin:0;box-shadow:none;padding:13mm 12mm}
+  .paper-fit{width:auto !important;height:auto !important;overflow:visible}
+  .paper{width:auto;min-height:auto;margin:0;box-shadow:none;padding:13mm 12mm;transform:none !important}
 }
-.hint{font-size:11.5px;color:var(--ink-soft);background:var(--accent-soft);border-radius:8px;padding:8px 11px;margin-bottom:13px;line-height:1.4}
-.hint b{color:var(--accent);font-family:'Prompt'}
 </style>
 </head>
 <body>
@@ -271,6 +279,15 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
   <div class="layout">
     <!-- ============ EDITOR ============ -->
     <div class="editor-col">
+      <div class="tabbar" id="tabbar">
+        <button data-tab="doc" class="active" onclick="switchTab('doc')">เอกสาร</button>
+        <button data-tab="party" onclick="switchTab('party')">ลูกค้า</button>
+        <button data-tab="items" onclick="switchTab('items')">สินค้า</button>
+        <button data-tab="issuer" onclick="switchTab('issuer')">ผู้ขาย</button>
+        <button data-tab="sign" onclick="switchTab('sign')">ลายเซ็น</button>
+      </div>
+
+      <div class="tab-panel active" data-tab="doc">
       <div class="panel" style="margin-bottom:18px">
         <div class="panel-head"><h2>ประเภทเอกสาร</h2></div>
         <div class="panel-body">
@@ -282,11 +299,32 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
           </div>
         </div>
       </div>
+      <div class="panel" style="margin-bottom:18px">
+        <div class="panel-head"><h2>รายละเอียดเอกสาร</h2></div>
+        <div class="panel-body">
+          <div class="row2">
+            <div class="field"><label>เลขที่ / Ref.no.</label>
+              <input id="d_ref" oninput="render()">
+            </div>
+            <div class="field"><label>วันที่</label><input id="d_date" type="date" oninput="render()"></div>
+          </div>
+          <div class="field" id="refDocField" style="display:none">
+            <label>อ้างอิงจากเอกสารเดิม (ดึงลูกค้า+รายการอัตโนมัติ)</label>
+            <div style="display:flex;gap:8px">
+              <select id="refDocSelect" style="flex:1">
+                <option value="">— ไม่อ้างอิง —</option>
+              </select>
+              <button class="mini-btn" onclick="applyRefDoc()">ดึงข้อมูล</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
 
+      <div class="tab-panel" data-tab="party">
       <div class="panel" id="customerPanel" style="margin-bottom:18px">
         <div class="panel-head"><h2>ข้อมูลลูกค้า</h2></div>
         <div class="panel-body">
-          <div class="hint">เลือกลูกค้าเดิมจาก <b>ฐานลูกค้า</b> หรือกรอกใหม่ด้านล่าง — กดปุ่ม <b>บันทึกลูกค้า</b> เพื่อจำไว้ใช้ครั้งหน้า</div>
           <div class="field">
             <div class="cust-picker">
               <div>
@@ -310,14 +348,12 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
           </div>
         </div>
       </div>
-
       <div class="panel" id="supplierPanel" style="margin-bottom:18px;display:none">
         <div class="panel-head">
           <h2>ข้อมูลซัพพลายเออร์ (ผู้ขาย)</h2>
           <button class="mini-btn" onclick="saveCurrentSupplier()">บันทึกซัพพลายเออร์</button>
         </div>
         <div class="panel-body">
-          <div class="hint">สำหรับใบสั่งซื้อ (PO) — เลือกซัพพลายเออร์ที่บันทึกไว้ หรือกรอกใหม่ แล้วกด <b>บันทึกซัพพลายเออร์</b> เพื่อจำไว้ใช้ครั้งหน้า</div>
           <div class="field">
             <div class="cust-picker">
               <div>
@@ -341,54 +377,15 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
           </div>
         </div>
       </div>
-
-      <div class="panel" style="margin-bottom:18px">
-        <div class="panel-head">
-          <h2>ผู้เสนอราคา / ผู้ออกเอกสาร</h2>
-          <button class="mini-btn" onclick="saveIssuerProfile()">บันทึกข้อมูลผู้ออก</button>
-        </div>
-        <div class="panel-body">
-          <div class="hint">กรอกครั้งเดียว กด <b>บันทึกข้อมูลผู้ออก</b> ระบบจำไว้ในเครื่องนี้ — ถ้าอยากให้ขึ้นเองทุกเครื่อง ไปที่ <b>Sync (Sheet)</b> แล้วกด "บันทึกข้อมูลผู้ออกขึ้น Sheet" (ครั้งเดียว)</div>
-          <div class="field"><label>ชื่อบริษัท / ผู้ออก</label><input id="s_name" oninput="render()" placeholder="ชื่อบริษัทหรือผู้ออกเอกสาร"></div>
-          <div class="field"><label>ที่อยู่</label><textarea id="s_addr" oninput="render()" placeholder="ที่อยู่บริษัท/ผู้ออกเอกสาร"></textarea></div>
-          <div class="field"><label>เลขประจำตัวผู้เสียภาษี (ผู้ออก)</label><input id="s_tax" oninput="render()" placeholder="เลข 13 หลัก"></div>
-          <div class="row2">
-            <div class="field"><label>เบอร์มือถือ</label><input id="s_phone" oninput="render()" placeholder="0xx-xxx-xxxx"></div>
-            <div class="field"><label>แฟกซ์</label><input id="s_fax" oninput="render()" placeholder="-"></div>
-          </div>
-          <div class="field"><label>อีเมล</label><input id="s_email" oninput="render()" placeholder="email@example.com"></div>
-          <div class="field"><label>ผู้เซ็นอนุมัติ (ชื่อท้ายเอกสาร)</label><input id="s_signer" oninput="render()" placeholder="ชื่อ-นามสกุล ผู้เซ็น"></div>
-        </div>
       </div>
 
-      <div class="panel" style="margin-bottom:18px">
-        <div class="panel-head"><h2>รายละเอียดเอกสาร</h2></div>
-        <div class="panel-body">
-          <div class="row2">
-            <div class="field"><label>เลขที่ / Ref.no.</label>
-              <input id="d_ref" oninput="render()">
-            </div>
-            <div class="field"><label>วันที่</label><input id="d_date" type="date" oninput="render()"></div>
-          </div>
-          <div class="field" id="refDocField" style="display:none">
-            <label>อ้างอิงจากเอกสารเดิม (ดึงลูกค้า+รายการอัตโนมัติ)</label>
-            <div style="display:flex;gap:8px">
-              <select id="refDocSelect" style="flex:1">
-                <option value="">— ไม่อ้างอิง —</option>
-              </select>
-              <button class="mini-btn" onclick="applyRefDoc()">ดึงข้อมูล</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      <div class="tab-panel" data-tab="items">
       <div class="panel" style="margin-bottom:18px">
         <div class="panel-head">
           <h2>รายการสินค้า / บริการ</h2>
           <button class="mini-btn" onclick="addItem()">+ เพิ่มรายการ</button>
         </div>
         <div class="panel-body">
-          <div class="hint">เลือกสินค้าที่บันทึกไว้เพื่อเติมอัตโนมัติ หรือกด <b>+ เพิ่มรายการ</b> เพื่อกรอกใหม่ — ในแต่ละรายการกด <b>บันทึกสินค้า</b> เพื่อจำไว้ใช้ครั้งหน้า</div>
           <div class="field">
             <div class="cust-picker">
               <div>
@@ -403,11 +400,9 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
           <div id="itemsEditor"></div>
         </div>
       </div>
-
       <div class="panel">
         <div class="panel-head"><h2>ภาษี / เงื่อนไข</h2></div>
         <div class="panel-body">
-          <div class="hint">ส่วนลดกำหนดรายชิ้นในแต่ละรายการสินค้าด้านบน (เลือกบาทหรือ % ได้)</div>
           <div class="field"><label>อัตรา VAT (%)</label><input id="vatRate" type="number" min="0" step="0.01" value="7" oninput="render()"></div>
           <div class="toggle-row">
             <label for="vatOn">คิดภาษีมูลค่าเพิ่ม (VAT)</label>
@@ -429,11 +424,32 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
           </div>
         </div>
       </div>
+      </div>
 
+      <div class="tab-panel" data-tab="issuer">
+      <div class="panel" style="margin-bottom:18px">
+        <div class="panel-head">
+          <h2>ผู้เสนอราคา / ผู้ออกเอกสาร</h2>
+          <button class="mini-btn" onclick="saveIssuerProfile()">บันทึกข้อมูลผู้ออก</button>
+        </div>
+        <div class="panel-body">
+          <div class="field"><label>ชื่อบริษัท / ผู้ออก</label><input id="s_name" oninput="render()" placeholder="ชื่อบริษัทหรือผู้ออกเอกสาร"></div>
+          <div class="field"><label>ที่อยู่</label><textarea id="s_addr" oninput="render()" placeholder="ที่อยู่บริษัท/ผู้ออกเอกสาร"></textarea></div>
+          <div class="field"><label>เลขประจำตัวผู้เสียภาษี (ผู้ออก)</label><input id="s_tax" oninput="render()" placeholder="เลข 13 หลัก"></div>
+          <div class="row2">
+            <div class="field"><label>เบอร์มือถือ</label><input id="s_phone" oninput="render()" placeholder="0xx-xxx-xxxx"></div>
+            <div class="field"><label>แฟกซ์</label><input id="s_fax" oninput="render()" placeholder="-"></div>
+          </div>
+          <div class="field"><label>อีเมล</label><input id="s_email" oninput="render()" placeholder="email@example.com"></div>
+          <div class="field"><label>ผู้เซ็นอนุมัติ (ชื่อท้ายเอกสาร)</label><input id="s_signer" oninput="render()" placeholder="ชื่อ-นามสกุล ผู้เซ็น"></div>
+        </div>
+      </div>
+      </div>
+
+      <div class="tab-panel" data-tab="sign">
       <div class="panel" style="margin-top:18px">
         <div class="panel-head"><h2>ลายเซ็น (จัดทำโดย)</h2></div>
         <div class="panel-body">
-          <div class="hint">เลือกได้ 2 วิธี — <b>อัปโหลดรูป</b> (PNG พื้นหลังโปร่งสวยสุด) หรือ <b>เซ็นสด</b> ด้วยนิ้ว/เมาส์ ลายเซ็นจะถูกเก็บในเครื่อง ครั้งหน้าไม่ต้องทำใหม่</div>
           <div class="field">
             <button class="mini-btn" onclick="document.getElementById('sigFile').click()" style="width:100%;padding:9px">📤 อัปโหลดรูปลายเซ็น</button>
             <input type="file" id="sigFile" accept="image/*" style="display:none" onchange="uploadSignature(event)">
@@ -468,12 +484,23 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
           </div>
         </div>
       </div>
+      <div class="panel" style="margin-top:18px">
+        <div class="panel-head"><h2>ช่องเซ็นในเอกสาร</h2></div>
+        <div class="panel-body">
+          <div id="signCfgList"></div>
+          <button class="mini-btn" style="margin-top:10px" onclick="resetSignCfg()">รีเซ็ตเป็นค่าเริ่มต้น</button>
+        </div>
+      </div>
+      </div>
+
     </div>
 
     <!-- ============ PREVIEW ============ -->
     <div class="preview-wrap">
       <div class="paper-scroll">
-        <div class="paper" id="paper"></div>
+        <div class="paper-fit" id="paperFit">
+          <div class="paper" id="paper"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -507,7 +534,6 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
       <button class="btn btn-ghost" onclick="closeCsvMenu()">✕ ปิด</button>
     </div>
     <div class="modal-body">
-      <div class="hint">เลือกชุดข้อมูลที่ต้องการดาวน์โหลดเป็นไฟล์ .csv (เปิดใน Excel / Google Sheet ได้ทันที) — เป็นการส่งออกทางเดียว ไม่ sync กลับ</div>
       <div style="display:flex;flex-direction:column;gap:9px">
         <button class="btn" style="justify-content:flex-start" onclick="exportCustomersCsv()">📇 ลูกค้า (customers.csv)</button>
         <button class="btn" style="justify-content:flex-start" onclick="exportProductsCsv()">📦 คลังสินค้า (products.csv)</button>
@@ -524,7 +550,6 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
       <button class="btn btn-ghost" onclick="closeSyncMenu()">✕ ปิด</button>
     </div>
     <div class="modal-body">
-      <div class="hint">วางลิงก์ Web App ที่ได้จาก Apps Script ด้านล่าง ระบบจะจำไว้ในเครื่องนี้ (ไม่ถูกฝังในโค้ด) — ข้อมูลยังเก็บในเครื่องเป็นหลัก ปุ่ม sync ไว้ส่งขึ้น/ดึงลงจาก Sheet เพื่อให้ข้ามเครื่องได้</div>
       <div class="field">
         <label>ลิงก์ Web App (Apps Script URL)</label>
         <input id="syncUrl" type="text" inputmode="url" placeholder="https://script.google.com/macros/s/.../exec">
@@ -556,7 +581,25 @@ const STORE_KEY = 'billing_customers_v1';
 const PROD_KEY = 'billing_products_v1';
 const SIG_KEY = 'billing_signature_v1';
 const SIG_ADJ_KEY = 'billing_signature_adj_v1';
+const SIGN_CFG_KEY = 'billing_sign_config_v1';
 let sigAdj = { x:0, y:0, size:56 }; // x/y = เลื่อน (px), size = ความสูง (px)
+
+// ช่องเซ็นมาตรฐาน 5 ช่อง (ใช้ได้ทุกประเภทเอกสาร)
+const SIGN_SLOTS = [
+  { key:'maker',     th:'ผู้จัดทำ',    en:'Prepared by' },
+  { key:'approver',  th:'ผู้อนุมัติ',   en:'Approved by' },
+  { key:'deliverer', th:'ผู้ส่งของ',   en:'Delivered by' },
+  { key:'receiver',  th:'ผู้รับของ',   en:'Received by' },
+  { key:'payee',     th:'ผู้รับเงิน',   en:'Received payment by' }
+];
+// ค่าเริ่มต้นแต่ละประเภท: enabled = ช่องที่เปิด, sigOn = ช่องที่โชว์ลายเซ็น
+const SIGN_DEFAULTS = {
+  quotation: { enabled:['maker','approver'], sigOn:['maker'] },
+  billing:   { enabled:['approver','deliverer','receiver'], sigOn:['approver','deliverer'] },
+  receipt:   { enabled:['maker','payee'], sigOn:['maker'] },
+  po:        { enabled:['maker','approver'], sigOn:['maker'] }
+};
+let signConfig = {}; // { docType: {enabled:[], sigOn:[]} }
 const SEQ_KEY = 'billing_sequences_v1';
 const DOCS_KEY = 'billing_documents_v1';
 const DOC_PREFIX = { quotation:'QT', billing:'INV', receipt:'RC', po:'PO' };
@@ -708,6 +751,7 @@ function setDocType(t){
   document.getElementById('supplierPanel').style.display = isPO ? '' : 'none';
   document.getElementById('poFields').style.display = isPO ? '' : 'none';
   refreshRefDocPicker();
+  renderSignCfgUI();
   fillNextRef();
   render();
 }
@@ -1269,6 +1313,82 @@ function fmtDate(v){
   const d = new Date(v);
   return d.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
 }
+// คืน config ช่องเซ็นของประเภทเอกสารปัจจุบัน (ถ้ายังไม่มีให้ใช้ค่าเริ่มต้น)
+function getSignCfg(t){
+  t = t || docType;
+  if(signConfig[t]) return signConfig[t];
+  const def = SIGN_DEFAULTS[t] || { enabled:['maker'], sigOn:['maker'] };
+  return { enabled:[...def.enabled], sigOn:[...def.sigOn] };
+}
+function loadSignConfig(){
+  try{ signConfig = JSON.parse(localStorage.getItem(SIGN_CFG_KEY)) || {}; }catch(e){ signConfig = {}; }
+}
+function saveSignConfig(){ localStorage.setItem(SIGN_CFG_KEY, JSON.stringify(signConfig)); }
+// วาด checkbox ตั้งค่าช่องเซ็นของประเภทเอกสารปัจจุบัน
+function renderSignCfgUI(){
+  const el = document.getElementById('signCfgList');
+  if(!el) return;
+  const cfg = getSignCfg();
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:6px 12px;align-items:center;font-size:12.5px">
+      <span></span>
+      <span style="font-weight:600;color:var(--ink-soft);text-align:center">เปิดช่อง</span>
+      <span style="font-weight:600;color:var(--ink-soft);text-align:center">ลายเซ็น</span>
+      ${SIGN_SLOTS.map(s=>{
+        const on = cfg.enabled.includes(s.key);
+        const sig = cfg.sigOn.includes(s.key);
+        return `<span>${s.th}</span>
+          <input type="checkbox" ${on?'checked':''} onchange="toggleSignSlot('${s.key}','enabled',this.checked)" style="justify-self:center;width:16px;height:16px">
+          <input type="checkbox" ${sig?'checked':''} ${on?'':'disabled'} onchange="toggleSignSlot('${s.key}','sigOn',this.checked)" style="justify-self:center;width:16px;height:16px">`;
+      }).join('')}
+    </div>`;
+}
+function toggleSignSlot(key, which, checked){
+  const cfg = getSignCfg();
+  const arr = cfg[which];
+  if(checked){ if(!arr.includes(key)) {
+      // รักษาลำดับตาม SIGN_SLOTS
+      cfg[which] = SIGN_SLOTS.map(s=>s.key).filter(k=> k===key || arr.includes(k));
+    }
+  } else {
+    cfg[which] = arr.filter(k=>k!==key);
+    if(which==='enabled'){ cfg.sigOn = cfg.sigOn.filter(k=>k!==key); } // ปิดช่อง = เอาลายเซ็นออกด้วย
+  }
+  signConfig[docType] = cfg;
+  saveSignConfig();
+  renderSignCfgUI();
+  render();
+}
+function resetSignCfg(){
+  delete signConfig[docType];
+  saveSignConfig();
+  renderSignCfgUI();
+  render();
+}
+function switchTab(t){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active', p.dataset.tab===t));
+  document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
+}
+// สร้าง HTML ช่องเซ็นตาม config
+function buildSignsHtml(){
+  const cfg = getSignCfg();
+  const cols = cfg.enabled.filter(k=>SIGN_SLOTS.find(s=>s.key===k));
+  if(cols.length===0) return '';
+  const useDeliveryStyle = cols.length>=3; // 3 ช่องขึ้นไปใช้สไตล์กรอบ
+  const cells = cols.map(k=>{
+    const slot = SIGN_SLOTS.find(s=>s.key===k);
+    const showSig = cfg.sigOn.includes(k);
+    const nameLine = (k==='maker') ? `<div class="nm">${escapeHtml(val('s_signer'))}</div>` : '';
+    const dateLine = useDeliveryStyle ? '<div class="sign-date">วันที่ ............................</div>' : '';
+    return `<div class="sign">
+      ${showSig ? sigImgTag() : ''}
+      <div class="ln"></div>
+      <div class="role">${slot.th} / ${slot.en}</div>
+      ${nameLine}${dateLine}
+    </div>`;
+  }).join('');
+  return `<div class="signs${useDeliveryStyle?' signs-delivery':''}">${cells}</div>`;
+}
 function sigImgTag(){
   if(!signatureData) return '';
   // ปรับตำแหน่ง/ขนาดจาก sigAdj — บวก offset จากค่าเริ่มต้น
@@ -1276,6 +1396,22 @@ function sigImgTag(){
   const style = `top:${baseTop + sigAdj.y}px;left:calc(50% + ${sigAdj.x}px);height:${sigAdj.size}px;max-height:${sigAdj.size}px`;
   return `<img class="sig-img" src="${signatureData}" alt="signature" style="${style}">`;
 }
+// ย่อกระดาษให้พอดีความกว้างช่องพรีวิว (เห็นทั้งใบ ไม่ต้อง scroll)
+function fitPreview(){
+  const scroll = document.querySelector('.paper-scroll');
+  const fit = document.getElementById('paperFit');
+  const paper = document.getElementById('paper');
+  if(!scroll || !fit || !paper) return;
+  const avail = scroll.clientWidth - 36; // ลบ padding ซ้าย-ขวา (18*2)
+  const paperW = paper.offsetWidth || 794; // 210mm ≈ 794px
+  let scale = avail / paperW;
+  if(scale > 1) scale = 1; // ไม่ขยายเกินขนาดจริง
+  paper.style.transform = `scale(${scale})`;
+  // ปรับความสูงกล่องให้เท่ากระดาษที่ย่อแล้ว (กันช่องว่างด้านล่าง)
+  fit.style.height = (paper.offsetHeight * scale) + 'px';
+  fit.style.width = (paperW * scale) + 'px';
+}
+window.addEventListener('resize', fitPreview);
 function render(){
   // มูลค่ารวมก่อน VAT = ผลรวมของทุกรายการ (แต่ละรายการหักส่วนลดของตัวเองแล้ว)
   const subtotal = items.reduce((s,it)=>s + lineTotal(it),0);
@@ -1415,31 +1551,11 @@ function render(){
     ${terms}
     ${footerBlock}
 
-    ${docType==='billing' ? `
-    <div class="signs signs-delivery">
-      <div class="sign">
-        <div class="ln"></div>
-        <div class="role">ผู้ส่งของ / Delivered by</div>
-        <div class="sign-date">วันที่ ............................</div>
-      </div>
-      <div class="sign">
-        ${sigImgTag()}
-        <div class="ln"></div>
-        <div class="role">ผู้รับของ / Received by</div>
-        <div class="sign-date">วันที่ ............................</div>
-      </div>
-    </div>` : `
-    <div class="signs">
-      <div class="sign"><div class="ln"></div><div class="role">${isPO ? 'ผู้จัดทำ' : 'ผู้อนุมัติซื้อ'}</div></div>
-      <div class="sign">
-        ${sigImgTag()}
-        <div class="ln"></div><div class="role">${isPO ? 'ผู้สั่งซื้อ' : 'จัดทำโดย'}</div><div class="nm">${escapeHtml(val('s_signer'))}</div>
-      </div>
-      <div class="sign"><div class="ln"></div><div class="role">${docType==='receipt' ? 'ผู้รับเงิน' : 'อนุมัติโดย'}</div></div>
-    </div>`}
+    ${buildSignsHtml()}
 
     <div class="foot-note">เอกสารนี้จัดทำด้วยระบบออกเอกสารอัตโนมัติ</div>
   `;
+  fitPreview();
 }
 function val(id){ const e=document.getElementById(id); return e?e.value:''; }
 
@@ -1454,6 +1570,8 @@ function init(){
   loadDocs();
   loadSignature();
   loadSigAdj();
+  loadSignConfig();
+  renderSignCfgUI();
   initSigPad();
   refreshRefDocPicker();
   updateSyncBadge();
@@ -1465,6 +1583,7 @@ function init(){
   render();
 }
 init();
+setTimeout(fitPreview, 300); // ปรับอีกครั้งหลัง font/layout โหลดเสร็จ
 </script>
 </body>
 </html>
