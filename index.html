@@ -153,6 +153,7 @@ textarea{resize:vertical;min-height:54px}
 .doc-company .tax{font-size:9.5pt;color:#444;margin-top:2px}
 .doc-title-box{text-align:right}
 .doc-title{font-family:'Prompt';font-weight:700;font-size:16pt;color:var(--accent);line-height:1.15}
+.doc-subtitle{font-family:'Prompt';font-weight:400;font-size:9pt;color:var(--ink-soft);margin-top:1px}
 .doc-meta{margin-top:6px;font-size:9.5pt}
 .doc-meta table{border-collapse:collapse;margin-left:auto}
 .doc-meta td{padding:1px 0 1px 10px;text-align:right}
@@ -202,6 +203,11 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
 .sign .ln{border-top:1px dotted #999;margin:34px 12px 5px;padding-top:5px}
 .sign .role{font-family:'Prompt';font-weight:500;color:#555}
 .sign .nm{color:#333;margin-top:2px}
+.sign .sign-date{color:#666;margin-top:6px;font-size:9pt}
+.signs-delivery{gap:24px;margin-top:24px}
+.signs-delivery .sign{border:1px solid #d8dee9;border-radius:8px;padding:10px 12px 12px}
+.signs-delivery .sign .ln{margin-top:40px}
+.signs-delivery .sign .sig-img{top:-16px}
 
 .foot-note{margin-top:18px;text-align:center;font-size:8.5pt;color:#aaa}
 
@@ -447,6 +453,19 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
               <button class="mini-btn" style="color:var(--danger)" onclick="removeSignature()">ลบ</button>
             </div>
           </div>
+          <div class="field" id="sigAdjust" style="display:none">
+            <label>ปรับตำแหน่ง / ขนาดลายเซ็น</label>
+            <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px">เลื่อนเพื่อจัดให้พอดีเส้นเซ็น (จำค่าไว้ทุกเอกสาร)</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center">
+              <span style="font-size:12px">ซ้าย-ขวา</span>
+              <input type="range" id="sigX" min="-120" max="120" step="2" value="0" oninput="updateSigAdj('x',this.value)">
+              <span style="font-size:12px">ขึ้น-ลง</span>
+              <input type="range" id="sigY" min="-40" max="40" step="2" value="0" oninput="updateSigAdj('y',this.value)">
+              <span style="font-size:12px">ขนาด</span>
+              <input type="range" id="sigSize" min="30" max="120" step="2" value="56" oninput="updateSigAdj('size',this.value)">
+            </div>
+            <button class="mini-btn" style="margin-top:8px" onclick="resetSigAdj()">รีเซ็ตค่าเริ่มต้น</button>
+          </div>
         </div>
       </div>
     </div>
@@ -536,6 +555,8 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
 const STORE_KEY = 'billing_customers_v1';
 const PROD_KEY = 'billing_products_v1';
 const SIG_KEY = 'billing_signature_v1';
+const SIG_ADJ_KEY = 'billing_signature_adj_v1';
+let sigAdj = { x:0, y:0, size:56 }; // x/y = เลื่อน (px), size = ความสูง (px)
 const SEQ_KEY = 'billing_sequences_v1';
 const DOCS_KEY = 'billing_documents_v1';
 const DOC_PREFIX = { quotation:'QT', billing:'INV', receipt:'RC', po:'PO' };
@@ -549,9 +570,12 @@ let signatureData = '';
 
 const DOC_TITLES = {
   quotation: 'ใบเสนอราคา',
-  billing: 'ใบวางบิล / ใบแจ้งหนี้',
+  billing: 'ใบส่งของ / ใบวางบิล',
   receipt: 'ใบกำกับภาษี / ใบเสร็จรับเงิน',
   po: 'ใบสั่งซื้อ / Purchase Order'
+};
+const DOC_SUBTITLES = {
+  billing: 'Delivery Note / Billing Note'
 };
 const SUPP_KEY = 'billing_suppliers_v1';
 let suppliers = [];
@@ -1170,10 +1194,33 @@ function loadSignature(){
 }
 function updateSigStatus(){
   const box = document.getElementById('sigStatus');
+  const adj = document.getElementById('sigAdjust');
   if(signatureData){
     box.style.display='block';
+    if(adj) adj.style.display='block';
     document.getElementById('sigThumb').src = signatureData;
-  } else { box.style.display='none'; }
+  } else {
+    box.style.display='none';
+    if(adj) adj.style.display='none';
+  }
+}
+function loadSigAdj(){
+  try{ const a = JSON.parse(localStorage.getItem(SIG_ADJ_KEY)); if(a) sigAdj = a; }catch(e){}
+  const sx=document.getElementById('sigX'), sy=document.getElementById('sigY'), ss=document.getElementById('sigSize');
+  if(sx) sx.value=sigAdj.x; if(sy) sy.value=sigAdj.y; if(ss) ss.value=sigAdj.size;
+}
+function updateSigAdj(key,val){
+  sigAdj[key] = parseFloat(val)||0;
+  localStorage.setItem(SIG_ADJ_KEY, JSON.stringify(sigAdj));
+  render();
+}
+function resetSigAdj(){
+  sigAdj = { x:0, y:0, size:56 };
+  localStorage.setItem(SIG_ADJ_KEY, JSON.stringify(sigAdj));
+  document.getElementById('sigX').value=0;
+  document.getElementById('sigY').value=0;
+  document.getElementById('sigSize').value=56;
+  render();
 }
 function setSignature(dataUrl){
   signatureData = dataUrl;
@@ -1221,6 +1268,13 @@ function fmtDate(v){
   if(!v) return '-';
   const d = new Date(v);
   return d.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function sigImgTag(){
+  if(!signatureData) return '';
+  // ปรับตำแหน่ง/ขนาดจาก sigAdj — บวก offset จากค่าเริ่มต้น
+  const baseTop = -22; // ค่าเริ่มต้นเดิม
+  const style = `top:${baseTop + sigAdj.y}px;left:calc(50% + ${sigAdj.x}px);height:${sigAdj.size}px;max-height:${sigAdj.size}px`;
+  return `<img class="sig-img" src="${signatureData}" alt="signature" style="${style}">`;
 }
 function render(){
   // มูลค่ารวมก่อน VAT = ผลรวมของทุกรายการ (แต่ละรายการหักส่วนลดของตัวเองแล้ว)
@@ -1298,6 +1352,7 @@ function render(){
       </div>
       <div class="doc-title-box">
         <div class="doc-title">${DOC_TITLES[docType]}</div>
+        ${DOC_SUBTITLES[docType] ? `<div class="doc-subtitle">${DOC_SUBTITLES[docType]}</div>` : ''}
         <div class="doc-meta">
           <table>
             <tr><td>เลขที่ / Ref.no. :</td><td><b>${escapeHtml(val('d_ref'))}</b></td></tr>
@@ -1360,14 +1415,28 @@ function render(){
     ${terms}
     ${footerBlock}
 
+    ${docType==='billing' ? `
+    <div class="signs signs-delivery">
+      <div class="sign">
+        <div class="ln"></div>
+        <div class="role">ผู้ส่งของ / Delivered by</div>
+        <div class="sign-date">วันที่ ............................</div>
+      </div>
+      <div class="sign">
+        ${sigImgTag()}
+        <div class="ln"></div>
+        <div class="role">ผู้รับของ / Received by</div>
+        <div class="sign-date">วันที่ ............................</div>
+      </div>
+    </div>` : `
     <div class="signs">
       <div class="sign"><div class="ln"></div><div class="role">${isPO ? 'ผู้จัดทำ' : 'ผู้อนุมัติซื้อ'}</div></div>
       <div class="sign">
-        ${signatureData ? `<img class="sig-img" src="${signatureData}" alt="signature">` : ''}
+        ${sigImgTag()}
         <div class="ln"></div><div class="role">${isPO ? 'ผู้สั่งซื้อ' : 'จัดทำโดย'}</div><div class="nm">${escapeHtml(val('s_signer'))}</div>
       </div>
-      <div class="sign"><div class="ln"></div><div class="role">อนุมัติโดย</div></div>
-    </div>
+      <div class="sign"><div class="ln"></div><div class="role">${docType==='receipt' ? 'ผู้รับเงิน' : 'อนุมัติโดย'}</div></div>
+    </div>`}
 
     <div class="foot-note">เอกสารนี้จัดทำด้วยระบบออกเอกสารอัตโนมัติ</div>
   `;
@@ -1384,6 +1453,7 @@ function init(){
   loadSuppliers();
   loadDocs();
   loadSignature();
+  loadSigAdj();
   initSigPad();
   refreshRefDocPicker();
   updateSyncBadge();
