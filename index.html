@@ -111,6 +111,9 @@ textarea{resize:vertical;min-height:54px}
 .tabbar button:hover:not(.active){background:var(--accent-soft);color:var(--accent)}
 .tab-panel{display:none}
 .tab-panel.active{display:block}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;font-family:'Prompt';font-size:12.5px;font-weight:500;border:1px solid var(--line);background:#fbfcfe;color:var(--ink-soft);padding:9px 8px;border-radius:8px;cursor:pointer;transition:all .15s}
+.seg button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
 /* line items editor */
 .litem{border:1px solid var(--line-soft);border-radius:10px;padding:11px;margin-bottom:9px;background:#fbfcfe;position:relative}
@@ -182,6 +185,14 @@ table.items td.c{text-align:center}
 table.items td.r{text-align:right;white-space:nowrap}
 table.items tbody tr:nth-child(even){background:#f6f8fb}
 table.items .desc small{display:block;color:#666;font-size:9pt}
+/* ปรับตารางเมื่อเปิดหลายคอลัมน์ ไม่ให้แน่นเกิน */
+table.items-snug{font-size:9pt}
+table.items-snug th{font-size:8.5pt;padding:6px 6px}
+table.items-snug td{padding:6px 6px}
+table.items-dense{font-size:8pt}
+table.items-dense th{font-size:8pt;padding:5px 4px}
+table.items-dense td{padding:5px 4px}
+table.items-dense td.r,table.items-snug td.r{white-space:nowrap}
 
 .totals{display:flex;justify-content:flex-end;margin-top:0}
 table.sum{border-collapse:collapse;min-width:46%;font-size:10pt}
@@ -408,6 +419,19 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
             <label for="vatOn">คิดภาษีมูลค่าเพิ่ม (VAT)</label>
             <label class="switch" for="vatOn"><input type="checkbox" id="vatOn" checked onchange="render()"><span></span></label>
           </div>
+          <div class="field" style="margin-top:8px">
+            <label>รูปแบบราคาที่กรอก</label>
+            <div class="seg" id="vatModeUI">
+              <button data-mode="exclusive" class="active" onclick="setVatMode('exclusive')">ราคาไม่รวม VAT</button>
+              <button data-mode="inclusive" onclick="setVatMode('inclusive')">ราคารวม VAT แล้ว</button>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="field">
+            <label>คอลัมน์ในตาราง</label>
+            <div id="colCfgList"></div>
+            <button class="mini-btn" style="margin-top:8px" onclick="resetColCfg()">รีเซ็ตคอลัมน์</button>
+          </div>
           <div class="divider"></div>
           <div class="row3">
             <div class="field"><label>ยืนราคา (วัน)</label><input id="t_valid" oninput="render()" value="30"></div>
@@ -600,6 +624,25 @@ const SIGN_DEFAULTS = {
   po:        { enabled:['maker','approver'], sigOn:['maker'] }
 };
 let signConfig = {}; // { docType: {enabled:[], sigOn:[]} }
+
+// คอลัมน์ตารางที่เปิด/ปิดได้ (ลำดับ/รายละเอียด/จำนวน เปิดตลอด ไม่อยู่ในนี้)
+const COL_SLOTS = [
+  { key:'unitPrice', th:'ราคาต่อหน่วย', en:'Unit Price' },
+  { key:'discount',  th:'ส่วนลด',       en:'Discount' },
+  { key:'beforeVat', th:'ราคาก่อน VAT', en:'Before VAT' },
+  { key:'afterVat',  th:'ราคาหลัง VAT', en:'After VAT' },
+  { key:'amount',    th:'มูลค่า',        en:'Amount' }
+];
+const COL_DEFAULTS = {
+  quotation: ['unitPrice','discount','amount'],
+  billing:   ['unitPrice','discount','amount'],
+  receipt:   ['unitPrice','discount','amount'],
+  po:        ['unitPrice','discount','amount']
+};
+let colConfig = {};  // { docType: [colKeys] }
+const COL_CFG_KEY = 'billing_col_config_v1';
+let vatModeCfg = {}; // { docType: 'exclusive' | 'inclusive' }
+const VAT_MODE_KEY = 'billing_vat_mode_v1';
 const SEQ_KEY = 'billing_sequences_v1';
 const DOCS_KEY = 'billing_documents_v1';
 const DOC_PREFIX = { quotation:'QT', billing:'INV', receipt:'RC', po:'PO' };
@@ -752,6 +795,8 @@ function setDocType(t){
   document.getElementById('poFields').style.display = isPO ? '' : 'none';
   refreshRefDocPicker();
   renderSignCfgUI();
+  renderColCfgUI();
+  renderVatModeUI();
   fillNextRef();
   render();
 }
@@ -1324,6 +1369,59 @@ function loadSignConfig(){
   try{ signConfig = JSON.parse(localStorage.getItem(SIGN_CFG_KEY)) || {}; }catch(e){ signConfig = {}; }
 }
 function saveSignConfig(){ localStorage.setItem(SIGN_CFG_KEY, JSON.stringify(signConfig)); }
+
+// ---- คอลัมน์ตาราง ----
+function getColCfg(t){
+  t = t || docType;
+  if(colConfig[t]) return colConfig[t];
+  return [...(COL_DEFAULTS[t] || ['unitPrice','discount','amount'])];
+}
+function loadColConfig(){
+  try{ colConfig = JSON.parse(localStorage.getItem(COL_CFG_KEY)) || {}; }catch(e){ colConfig = {}; }
+}
+function saveColConfig(){ localStorage.setItem(COL_CFG_KEY, JSON.stringify(colConfig)); }
+function toggleCol(key, checked){
+  let cols = getColCfg();
+  if(checked){ if(!cols.includes(key)) cols = COL_SLOTS.map(s=>s.key).filter(k=>k===key||cols.includes(k)); }
+  else { cols = cols.filter(k=>k!==key); }
+  colConfig[docType] = cols;
+  saveColConfig();
+  renderColCfgUI();
+  render();
+}
+function resetColCfg(){
+  delete colConfig[docType];
+  saveColConfig(); renderColCfgUI(); render();
+}
+// ---- โหมด VAT (รวม/ไม่รวม) ----
+function getVatMode(t){ t=t||docType; return vatModeCfg[t] || 'exclusive'; }
+function loadVatMode(){
+  try{ vatModeCfg = JSON.parse(localStorage.getItem(VAT_MODE_KEY)) || {}; }catch(e){ vatModeCfg = {}; }
+}
+function setVatMode(mode){
+  vatModeCfg[docType] = mode;
+  localStorage.setItem(VAT_MODE_KEY, JSON.stringify(vatModeCfg));
+  renderVatModeUI(); render();
+}
+function renderVatModeUI(){
+  const el = document.getElementById('vatModeUI');
+  if(!el) return;
+  const m = getVatMode();
+  el.querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.mode===m));
+}
+function renderColCfgUI(){
+  const el = document.getElementById('colCfgList');
+  if(!el) return;
+  const cols = getColCfg();
+  const warn = cols.length>=4 ? '<div style="font-size:11.5px;color:var(--gold);margin-top:8px">⚠ เปิดหลายคอลัมน์อาจทำให้ตารางแน่น — ระบบย่อฟอนต์ให้อัตโนมัติ</div>' : '';
+  el.innerHTML = COL_SLOTS.map(s=>{
+    const on = cols.includes(s.key);
+    return `<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:13px">
+      <input type="checkbox" ${on?'checked':''} onchange="toggleCol('${s.key}',this.checked)" style="width:16px;height:16px">
+      ${s.th} <span style="color:var(--ink-soft);font-size:11px">${s.en}</span>
+    </label>`;
+  }).join('') + warn;
+}
 // วาด checkbox ตั้งค่าช่องเซ็นของประเภทเอกสารปัจจุบัน
 function renderSignCfgUI(){
   const el = document.getElementById('signCfgList');
@@ -1413,27 +1511,59 @@ function fitPreview(){
 }
 window.addEventListener('resize', fitPreview);
 function render(){
-  // มูลค่ารวมก่อน VAT = ผลรวมของทุกรายการ (แต่ละรายการหักส่วนลดของตัวเองแล้ว)
-  const subtotal = items.reduce((s,it)=>s + lineTotal(it),0);
   const vatOn = document.getElementById('vatOn').checked;
   const vatRate = parseFloat(document.getElementById('vatRate').value)||0;
-  const vat = vatOn ? subtotal * vatRate/100 : 0;
-  const total = subtotal + vat;
+  const inclusive = getVatMode()==='inclusive';
 
-  const discLabel = (it)=>{
-    if(!it.disc) return '<span style="color:#bbb">—</span>';
-    return it.discType==='percent' ? it.disc+'%' : fmt(it.disc);
+  // ผลรวมมูลค่ารายการ (หักส่วนลดแล้ว) — ความหมายต่างกันตามโหมด
+  const lineSum = items.reduce((s,it)=>s + lineTotal(it),0);
+  let subtotal, vat, total;
+  if(!vatOn){
+    subtotal = lineSum; vat = 0; total = lineSum;
+  } else if(inclusive){
+    // ราคาที่กรอกรวม VAT แล้ว → ถอด VAT ออก
+    total = lineSum;
+    subtotal = lineSum / (1 + vatRate/100);
+    vat = total - subtotal;
+  } else {
+    // ราคาไม่รวม VAT → บวก VAT ด้านบน
+    subtotal = lineSum; vat = lineSum * vatRate/100; total = subtotal + vat;
+  }
+  // มูลค่าก่อน/หลัง VAT ต่อรายการ (สำหรับคอลัมน์ beforeVat/afterVat)
+  const lineBeforeVat = (it)=>{
+    const lt = lineTotal(it);
+    return (vatOn && inclusive) ? lt/(1+vatRate/100) : lt;
   };
+  const lineAfterVat = (it)=>{
+    const lt = lineTotal(it);
+    if(!vatOn) return lt;
+    return inclusive ? lt : lt*(1+vatRate/100);
+  };
+
+  // ---- คอลัมน์แบบไดนามิก ----
+  const activeCols = getColCfg(); // subset ของ COL_SLOTS keys ตามลำดับ
+  const nExtra = activeCols.length;
+  // ปรับขนาดฟอนต์ตารางเมื่อคอลัมน์เยอะ (กันแน่น)
+  const tableClass = nExtra>=4 ? 'items items-dense' : (nExtra>=3 ? 'items items-snug' : 'items');
+  // ความกว้างคอลัมน์ตัวเลข (รายละเอียดยืดหด เอาที่เหลือ)
+  const numW = nExtra>=4 ? 11 : 13;
+  const colDefs = {
+    unitPrice: { th:'ราคาต่อหน่วย', en:'Unit Price', val:it=>fmt(it.price) },
+    discount:  { th:'ส่วนลด', en:'Discount', val:it=> it.disc ? (it.discType==='percent'? it.disc+'%' : fmt(it.disc)) : '<span style="color:#bbb">—</span>' },
+    beforeVat: { th:'ก่อน VAT', en:'Before VAT', val:it=>fmt(lineBeforeVat(it)) },
+    afterVat:  { th:'หลัง VAT', en:'After VAT', val:it=>fmt(lineAfterVat(it)) },
+    amount:    { th:'มูลค่า', en:'Amount', val:it=>fmt(lineTotal(it)) }
+  };
+  const headExtra = activeCols.map(k=>`<th class="r" style="width:${numW}%">${colDefs[k].th}<br><span style="font-weight:400;font-size:8pt">${colDefs[k].en}</span></th>`).join('');
+  const colspan = 3 + nExtra; // ลำดับ+รายละเอียด+จำนวน + คอลัมน์เสริม
   const itemRows = items.length ? items.map((it,i)=>`
     <tr>
       <td class="c">${i+1}</td>
       <td class="desc">${nl2br(it.desc)||'<span style="color:#bbb">—</span>'}</td>
       <td class="c">${it.qty}</td>
-      <td class="r">${fmt(it.price)}</td>
-      <td class="r">${discLabel(it)}</td>
-      <td class="r">${fmt(lineTotal(it))}</td>
+      ${activeCols.map(k=>`<td class="r">${colDefs[k].val(it)}</td>`).join('')}
     </tr>`).join('') :
-    `<tr><td colspan="6" style="text-align:center;color:#bbb;padding:18px">— ยังไม่มีรายการ —</td></tr>`;
+    `<tr><td colspan="${colspan}" style="text-align:center;color:#bbb;padding:18px">— ยังไม่มีรายการ —</td></tr>`;
 
   // footer block differs by doc type
   let footerBlock='';
@@ -1524,15 +1654,13 @@ function render(){
       </div>
     </div>
 
-    <table class="items">
+    <table class="${tableClass}">
       <thead>
         <tr>
           <th class="c" style="width:7%">ลำดับ<br><span style="font-weight:400;font-size:8pt">Items</span></th>
           <th>รายละเอียด<br><span style="font-weight:400;font-size:8pt">Description</span></th>
-          <th class="c" style="width:10%">จำนวน<br><span style="font-weight:400;font-size:8pt">Qty</span></th>
-          <th class="r" style="width:15%">ราคาต่อหน่วย<br><span style="font-weight:400;font-size:8pt">Unit Price</span></th>
-          <th class="r" style="width:12%">ส่วนลด<br><span style="font-weight:400;font-size:8pt">Discount</span></th>
-          <th class="r" style="width:17%">มูลค่า<br><span style="font-weight:400;font-size:8pt">Amount</span></th>
+          <th class="c" style="width:9%">จำนวน<br><span style="font-weight:400;font-size:8pt">Qty</span></th>
+          ${headExtra}
         </tr>
       </thead>
       <tbody>${itemRows}</tbody>
@@ -1540,8 +1668,8 @@ function render(){
 
     <div class="totals">
       <table class="sum">
-        <tr><td class="lbl">รวมเป็นเงิน</td><td class="val">${fmt(subtotal)}</td></tr>
-        ${vatOn ? `<tr><td class="lbl">ภาษีมูลค่าเพิ่ม ${vatRate}%</td><td class="val">${fmt(vat)}</td></tr>` : ''}
+        <tr><td class="lbl">รวมเป็นเงิน (ก่อน VAT)</td><td class="val">${fmt(subtotal)}</td></tr>
+        ${vatOn ? `<tr><td class="lbl">ภาษีมูลค่าเพิ่ม ${vatRate}%${inclusive?' (รวมในราคาแล้ว)':''}</td><td class="val">${fmt(vat)}</td></tr>` : ''}
         <tr class="grand"><td class="lbl" style="color:#fff">จำนวนเงินรวมทั้งสิ้น</td><td class="val">${fmt(total)}</td></tr>
       </table>
     </div>
@@ -1572,6 +1700,10 @@ function init(){
   loadSigAdj();
   loadSignConfig();
   renderSignCfgUI();
+  loadColConfig();
+  loadVatMode();
+  renderColCfgUI();
+  renderVatModeUI();
   initSigPad();
   refreshRefDocPicker();
   updateSyncBadge();
