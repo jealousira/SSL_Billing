@@ -27,6 +27,7 @@ body.theme-quotation{--accent:#1f4e79;--accent-soft:#e8eef5}        /* น้ำ
 body.theme-billing{--accent:#c05a1e;--accent-soft:#fceee3}          /* ส้ม */
 body.theme-receipt{--accent:#1f8ba8;--accent-soft:#e4f4f8}         /* ฟ้าอ่อน */
 body.theme-po{--accent:#2f7d4f;--accent-soft:#e6f3ec}              /* เขียว (ใบสั่งซื้อ) */
+body.theme-borrow{--accent:#5a4b8a;--accent-soft:#eceaf4}         /* ม่วง (ใบยืมของ) */
 *{box-sizing:border-box;margin:0;padding:0}
 body{
   font-family:'Sarabun',sans-serif;
@@ -214,6 +215,10 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
 .receipt-table th,.receipt-table td{border:1px solid #cfd6e0;padding:7px 8px}
 .receipt-table th{background:#f6f8fb;font-family:'Prompt';font-weight:500;text-align:left}
 .receipt-note{margin-top:10px;font-size:9.5pt;color:#555;font-style:italic}
+.borrow-note{margin-top:14px;font-size:9pt;color:#333}
+.borrow-note .ph{font-family:'Prompt';font-weight:600;color:var(--accent);font-size:9pt;margin-bottom:4px;text-decoration:underline}
+.borrow-note ol{margin:0;padding-left:20px}
+.borrow-note li{margin-bottom:5px;line-height:1.45}
 
 .signs{display:flex;justify-content:space-between;gap:18px;margin-top:30px}
 .sign{flex:1;text-align:center;font-size:9.5pt;position:relative}
@@ -307,6 +312,7 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
             <button data-type="billing" onclick="setDocType('billing')">ใบวางบิล/<br>ใบแจ้งหนี้</button>
             <button data-type="receipt" onclick="setDocType('receipt')">ใบกำกับภาษี/ใบเสร็จ</button>
             <button data-type="po" onclick="setDocType('po')">ใบสั่งซื้อ (PO)</button>
+            <button data-type="borrow" onclick="setDocType('borrow')">ใบยืมของ</button>
           </div>
         </div>
       </div>
@@ -608,20 +614,22 @@ const SIG_ADJ_KEY = 'billing_signature_adj_v1';
 const SIGN_CFG_KEY = 'billing_sign_config_v1';
 let sigAdj = { x:0, y:0, size:56 }; // x/y = เลื่อน (px), size = ความสูง (px)
 
-// ช่องเซ็นมาตรฐาน 5 ช่อง (ใช้ได้ทุกประเภทเอกสาร)
+// ช่องเซ็นมาตรฐาน (ใช้ได้ทุกประเภทเอกสาร)
 const SIGN_SLOTS = [
   { key:'maker',     th:'ผู้จัดทำ',    en:'Prepared by' },
   { key:'approver',  th:'ผู้อนุมัติ',   en:'Approved by' },
   { key:'deliverer', th:'ผู้ส่งของ',   en:'Delivered by' },
   { key:'receiver',  th:'ผู้รับของ',   en:'Received by' },
-  { key:'payee',     th:'ผู้รับเงิน',   en:'Received payment by' }
+  { key:'payee',     th:'ผู้รับเงิน',   en:'Received payment by' },
+  { key:'borrower',  th:'ผู้รับมอบ',   en:'Received by (borrower)' }
 ];
 // ค่าเริ่มต้นแต่ละประเภท: enabled = ช่องที่เปิด, sigOn = ช่องที่โชว์ลายเซ็น
 const SIGN_DEFAULTS = {
   quotation: { enabled:['maker','approver'], sigOn:['maker'] },
   billing:   { enabled:['approver','deliverer','receiver'], sigOn:['approver','deliverer'] },
   receipt:   { enabled:['maker','payee'], sigOn:['maker'] },
-  po:        { enabled:['maker','approver'], sigOn:['maker'] }
+  po:        { enabled:['maker','approver'], sigOn:['maker'] },
+  borrow:    { enabled:['borrower','approver'], sigOn:['borrower'] }
 };
 let signConfig = {}; // { docType: {enabled:[], sigOn:[]} }
 
@@ -631,13 +639,16 @@ const COL_SLOTS = [
   { key:'discount',  th:'ส่วนลด',       en:'Discount' },
   { key:'beforeVat', th:'ราคาก่อน VAT', en:'Before VAT' },
   { key:'afterVat',  th:'ราคาหลัง VAT', en:'After VAT' },
-  { key:'amount',    th:'มูลค่า',        en:'Amount' }
+  { key:'amount',    th:'มูลค่า',        en:'Amount' },
+  { key:'assetCode', th:'รหัสทรัพย์สิน', en:'Asset Code' },
+  { key:'note',      th:'หมายเหตุ',      en:'Note' }
 ];
 const COL_DEFAULTS = {
   quotation: ['unitPrice','discount','amount'],
   billing:   ['unitPrice','discount','amount'],
   receipt:   ['unitPrice','discount','amount'],
-  po:        ['unitPrice','discount','amount']
+  po:        ['unitPrice','discount','amount'],
+  borrow:    ['assetCode','note']
 };
 let colConfig = {};  // { docType: [colKeys] }
 const COL_CFG_KEY = 'billing_col_config_v1';
@@ -645,7 +656,7 @@ let vatModeCfg = {}; // { docType: 'exclusive' | 'inclusive' }
 const VAT_MODE_KEY = 'billing_vat_mode_v1';
 const SEQ_KEY = 'billing_sequences_v1';
 const DOCS_KEY = 'billing_documents_v1';
-const DOC_PREFIX = { quotation:'QT', billing:'INV', receipt:'RC', po:'PO' };
+const DOC_PREFIX = { quotation:'QT', billing:'INV', receipt:'RC', po:'PO', borrow:'BR' };
 let savedDocs = [];
 let refDocNo = '';   // เลขอ้างอิงที่เลือก (เช่น ใบวางบิลอ้างอิง QT)
 let customers = [];
@@ -658,10 +669,12 @@ const DOC_TITLES = {
   quotation: 'ใบเสนอราคา',
   billing: 'ใบส่งของ / ใบวางบิล',
   receipt: 'ใบกำกับภาษี / ใบเสร็จรับเงิน',
-  po: 'ใบสั่งซื้อ / Purchase Order'
+  po: 'ใบสั่งซื้อ / Purchase Order',
+  borrow: 'ใบยืมทรัพย์สิน / อุปกรณ์บริษัท'
 };
 const DOC_SUBTITLES = {
-  billing: 'Delivery Note / Billing Note'
+  billing: 'Delivery Note / Billing Note',
+  borrow: 'Borrowing Form'
 };
 const SUPP_KEY = 'billing_suppliers_v1';
 let suppliers = [];
@@ -715,13 +728,13 @@ function fmt(n){
 
 /* ============ ITEMS ============ */
 function addItem(desc='',qty=1,price=0,disc=0,discType='amount'){
-  items.push({desc,qty,price,disc,discType});
+  items.push({desc,qty,price,disc,discType,assetCode:'',note:''});
   renderItemsEditor();
   render();
 }
 function delItem(i){ items.splice(i,1); renderItemsEditor(); render(); }
 function updItem(i,field,val){
-  if(field==='desc' || field==='discType'){ items[i][field] = val; }
+  if(field==='desc' || field==='discType' || field==='assetCode' || field==='note'){ items[i][field] = val; }
   else { items[i][field] = parseFloat(val)||0; }
   updateLineTotalDisplay(i);
   render();
@@ -746,21 +759,29 @@ function lineTotal(it){
 }
 // คัดลอกรายการสินค้าให้มี field ครบ (ใช้ตอนบันทึก/ดึงเอกสาร)
 function cloneItems(list){
-  return (list||[]).map(it=>({desc:it.desc, qty:it.qty, price:it.price, disc:it.disc||0, discType:it.discType||'amount'}));
+  return (list||[]).map(it=>({desc:it.desc, qty:it.qty, price:it.price, disc:it.disc||0, discType:it.discType||'amount', assetCode:it.assetCode||'', note:it.note||''}));
 }
 function renderItemsEditor(){
   const el = document.getElementById('itemsEditor');
   if(items.length===0){ el.innerHTML = '<div class="empty" style="padding:14px">ยังไม่มีรายการ — กด “+ เพิ่มรายการ”</div>'; return; }
+  const isBorrow = (docType==='borrow');
   el.innerHTML = items.map((it,i)=>`
     <div class="litem">
       <div class="litem-top">
         <span class="litem-no">รายการที่ ${i+1}</span>
         <div style="display:flex;gap:5px">
-          <button class="del" style="color:var(--accent)" onclick="saveProduct(${i})">บันทึกสินค้า</button>
+          ${isBorrow ? '' : `<button class="del" style="color:var(--accent)" onclick="saveProduct(${i})">บันทึกสินค้า</button>`}
           <button class="del" onclick="delItem(${i})">ลบ</button>
         </div>
       </div>
-      <textarea placeholder="ชื่อ + รายละเอียดสินค้า/บริการ" oninput="updItem(${i},'desc',this.value)">${escapeHtml(it.desc)}</textarea>
+      <textarea placeholder="${isBorrow?'ชื่อรายการที่ยืม':'ชื่อ + รายละเอียดสินค้า/บริการ'}" oninput="updItem(${i},'desc',this.value)">${escapeHtml(it.desc)}</textarea>
+      ${isBorrow ? `
+      <div class="row2">
+        <div><label style="font-size:11px">จำนวน</label><input type="number" min="0" step="1" value="${it.qty}" oninput="updItem(${i},'qty',this.value)"></div>
+        <div><label style="font-size:11px">รหัสทรัพย์สิน</label><input type="text" value="${escapeHtml(it.assetCode||'')}" oninput="updItem(${i},'assetCode',this.value)" placeholder="เช่น IT-001"></div>
+      </div>
+      <div class="field" style="margin-top:7px"><label style="font-size:11px">หมายเหตุ / สภาพ</label><input type="text" value="${escapeHtml(it.note||'')}" oninput="updItem(${i},'note',this.value)" placeholder="เช่น ปกติ / มีรอยขีดข่วน"></div>
+      ` : `
       <div class="row2">
         <div><label style="font-size:11px">จำนวน</label><input type="number" min="0" step="1" value="${it.qty}" oninput="updItem(${i},'qty',this.value)"></div>
         <div><label style="font-size:11px">ราคาต่อหน่วย (บาท)</label><input type="number" min="0" step="0.01" value="${it.price}" oninput="updItem(${i},'price',this.value)"></div>
@@ -778,6 +799,7 @@ function renderItemsEditor(){
         </div>
         <div><label style="font-size:11px">มูลค่า (บาท)</label><input type="text" value="${fmt(lineTotal(it))}" readonly style="background:#f2f4f7;color:var(--ink-soft)"></div>
       </div>
+      `}
     </div>`).join('');
 }
 function escapeHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -797,6 +819,7 @@ function setDocType(t){
   renderSignCfgUI();
   renderColCfgUI();
   renderVatModeUI();
+  renderItemsEditor();
   fillNextRef();
   render();
 }
@@ -1548,20 +1571,22 @@ function render(){
   // ความกว้างคอลัมน์ตัวเลข (รายละเอียดยืดหด เอาที่เหลือ)
   const numW = nExtra>=4 ? 11 : 13;
   const colDefs = {
-    unitPrice: { th:'ราคาต่อหน่วย', en:'Unit Price', val:it=>fmt(it.price) },
-    discount:  { th:'ส่วนลด', en:'Discount', val:it=> it.disc ? (it.discType==='percent'? it.disc+'%' : fmt(it.disc)) : '<span style="color:#bbb">—</span>' },
-    beforeVat: { th:'ก่อน VAT', en:'Before VAT', val:it=>fmt(lineBeforeVat(it)) },
-    afterVat:  { th:'หลัง VAT', en:'After VAT', val:it=>fmt(lineAfterVat(it)) },
-    amount:    { th:'มูลค่า', en:'Amount', val:it=>fmt(lineTotal(it)) }
+    unitPrice: { th:'ราคาต่อหน่วย', en:'Unit Price', align:'r', val:it=>fmt(it.price) },
+    discount:  { th:'ส่วนลด', en:'Discount', align:'r', val:it=> it.disc ? (it.discType==='percent'? it.disc+'%' : fmt(it.disc)) : '<span style="color:#bbb">—</span>' },
+    beforeVat: { th:'ก่อน VAT', en:'Before VAT', align:'r', val:it=>fmt(lineBeforeVat(it)) },
+    afterVat:  { th:'หลัง VAT', en:'After VAT', align:'r', val:it=>fmt(lineAfterVat(it)) },
+    amount:    { th:'มูลค่า', en:'Amount', align:'r', val:it=>fmt(lineTotal(it)) },
+    assetCode: { th:'รหัสทรัพย์สิน', en:'Asset Code', align:'c', val:it=>escapeHtml(it.assetCode||'')||'<span style="color:#bbb">—</span>' },
+    note:      { th:'หมายเหตุ', en:'Note', align:'l', val:it=>escapeHtml(it.note||'')||'<span style="color:#bbb">—</span>' }
   };
-  const headExtra = activeCols.map(k=>`<th class="r" style="width:${numW}%">${colDefs[k].th}<br><span style="font-weight:400;font-size:8pt">${colDefs[k].en}</span></th>`).join('');
+  const headExtra = activeCols.map(k=>`<th class="${colDefs[k].align}" style="width:${numW}%">${colDefs[k].th}<br><span style="font-weight:400;font-size:8pt">${colDefs[k].en}</span></th>`).join('');
   const colspan = 3 + nExtra; // ลำดับ+รายละเอียด+จำนวน + คอลัมน์เสริม
   const itemRows = items.length ? items.map((it,i)=>`
     <tr>
       <td class="c">${i+1}</td>
       <td class="desc">${nl2br(it.desc)||'<span style="color:#bbb">—</span>'}</td>
       <td class="c">${it.qty}</td>
-      ${activeCols.map(k=>`<td class="r">${colDefs[k].val(it)}</td>`).join('')}
+      ${activeCols.map(k=>`<td class="${colDefs[k].align}">${colDefs[k].val(it)}</td>`).join('')}
     </tr>`).join('') :
     `<tr><td colspan="${colspan}" style="text-align:center;color:#bbb;padding:18px">— ยังไม่มีรายการ —</td></tr>`;
 
@@ -1582,6 +1607,16 @@ function render(){
         ${val('po_delivery_place') ? 'สถานที่ส่งมอบ : '+nl2br(val('po_delivery_place'))+'<br>' : ''}
         ${val('po_payment_terms') ? 'เงื่อนไขการชำระเงิน : '+escapeHtml(val('po_payment_terms')) : ''}
       </div>`;
+  } else if(docType==='borrow'){
+    footerBlock = `
+      <div class="borrow-note">
+        <div class="ph">หมายเหตุ</div>
+        <ol>
+          <li>หากพนักงานนำทรัพย์สินมาคืนบริษัทในสภาพเสียหาย (เว้นจากการใช้งานปกติ) พนักงานตกลงรับผิดชอบความเสียหายดังกล่าว และตกลงให้บริษัทหักเงินเพื่อเป็นค่าใช้จ่ายในการซ่อมแซม</li>
+          <li>พนักงานสามารถโต้แย้งได้ในกรณีหากทรัพย์สินมีสภาพแตกหัก เสียหาย ไม่สมบูรณ์ ตั้งแต่ก่อนนำไปใช้งาน โดยจะต้องระบุเป็นลายลักษณ์อักษรในหมายเหตุ และลงชื่อกำกับไว้ทั้งสองฝ่าย</li>
+          <li>หลังจากเซ็นรับทรัพย์สินแล้ว ถือว่าพนักงานรับทราบยอมรับว่าได้รับทรัพย์สินในสภาพสมบูรณ์</li>
+        </ol>
+      </div>`;
   } else {
     footerBlock = `
       <div class="pay-box">
@@ -1590,8 +1625,8 @@ function render(){
       </div>`;
   }
 
-  // เงื่อนไข (ยืนราคา/ส่งมอบ/เครดิต) — ไม่แสดงในใบเสร็จและ PO
-  const terms = (docType!=='receipt' && docType!=='po') ? `
+  // เงื่อนไข (ยืนราคา/ส่งมอบ/เครดิต) — เฉพาะใบเสนอราคาและใบวางบิล
+  const terms = (docType!=='receipt' && docType!=='po' && docType!=='borrow') ? `
     <div class="terms">
       <div><b>ยืนราคา</b> ${escapeHtml(val('t_valid'))} วัน</div>
       <div><b>ส่งมอบ</b> ${escapeHtml(val('t_deliver'))} วัน</div>
@@ -1606,9 +1641,10 @@ function render(){
   const buyerContact = isPO ? val('sp_contact') : val('c_contact');
   const buyerPhone = isPO ? val('sp_phone') : val('c_phone');
   const buyerEmail = isPO ? val('sp_email') : val('c_email');
-  const leftLabel  = isPO ? 'ผู้ขาย / Supplier' : 'เรียน / Customer';
-  const leftEmpty  = isPO ? '— ระบุชื่อซัพพลายเออร์ —' : '— ระบุชื่อลูกค้า —';
-  const rightLabel = isPO ? 'ผู้สั่งซื้อ / Buyer' : 'ผู้เสนอราคา / Issued by';
+  const isBorrowDoc = (docType==='borrow');
+  const leftLabel  = isPO ? 'ผู้ขาย / Supplier' : (isBorrowDoc ? 'ผู้ยืม / Borrower' : 'เรียน / Customer');
+  const leftEmpty  = isPO ? '— ระบุชื่อซัพพลายเออร์ —' : (isBorrowDoc ? '— ระบุชื่อผู้ยืม —' : '— ระบุชื่อลูกค้า —');
+  const rightLabel = isPO ? 'ผู้สั่งซื้อ / Buyer' : (isBorrowDoc ? 'ผู้ให้ยืม / Lender' : 'ผู้เสนอราคา / Issued by');
 
   document.getElementById('paper').innerHTML = `
     <div class="doc-head">
@@ -1666,6 +1702,7 @@ function render(){
       <tbody>${itemRows}</tbody>
     </table>
 
+    ${docType==='borrow' ? '' : `
     <div class="totals">
       <table class="sum">
         <tr><td class="lbl">รวมเป็นเงิน (ก่อน VAT)</td><td class="val">${fmt(subtotal)}</td></tr>
@@ -1674,7 +1711,7 @@ function render(){
       </table>
     </div>
 
-    <div class="amount-words"><b>(ตัวอักษร)</b> ${bahtText(total)}</div>
+    <div class="amount-words"><b>(ตัวอักษร)</b> ${bahtText(total)}</div>`}
 
     ${terms}
     ${footerBlock}
