@@ -215,10 +215,7 @@ table.sum tr.grand td{background:var(--accent);color:#fff;font-family:'Prompt';f
 .receipt-table th,.receipt-table td{border:1px solid #cfd6e0;padding:7px 8px}
 .receipt-table th{background:#f6f8fb;font-family:'Prompt';font-weight:500;text-align:left}
 .receipt-note{margin-top:10px;font-size:9.5pt;color:#555;font-style:italic}
-.borrow-note{margin-top:14px;font-size:9pt;color:#333}
-.borrow-note .ph{font-family:'Prompt';font-weight:600;color:var(--accent);font-size:9pt;margin-bottom:4px;text-decoration:underline}
-.borrow-note ol{margin:0;padding-left:20px}
-.borrow-note li{margin-bottom:5px;line-height:1.45}
+
 
 .signs{display:flex;justify-content:space-between;gap:18px;margin-top:30px}
 .sign{flex:1;text-align:center;font-size:9.5pt;position:relative}
@@ -1605,15 +1602,7 @@ function render(){
         ${val('po_payment_terms') ? 'เงื่อนไขการชำระเงิน : '+escapeHtml(val('po_payment_terms')) : ''}
       </div>`;
   } else if(docType==='borrow'){
-    footerBlock = `
-      <div class="borrow-note">
-        <div class="ph">หมายเหตุ</div>
-        <ol>
-          <li>หากพนักงานนำทรัพย์สินมาคืนบริษัทในสภาพเสียหาย (เว้นจากการใช้งานปกติ) พนักงานตกลงรับผิดชอบความเสียหายดังกล่าว และตกลงให้บริษัทหักเงินเพื่อเป็นค่าใช้จ่ายในการซ่อมแซม</li>
-          <li>พนักงานสามารถโต้แย้งได้ในกรณีหากทรัพย์สินมีสภาพแตกหัก เสียหาย ไม่สมบูรณ์ ตั้งแต่ก่อนนำไปใช้งาน โดยจะต้องระบุเป็นลายลักษณ์อักษรในหมายเหตุ และลงชื่อกำกับไว้ทั้งสองฝ่าย</li>
-          <li>หลังจากเซ็นรับทรัพย์สินแล้ว ถือว่าพนักงานรับทราบยอมรับว่าได้รับทรัพย์สินในสภาพสมบูรณ์</li>
-        </ol>
-      </div>`;
+    footerBlock = '';
   } else {
     footerBlock = `
       <div class="pay-box">
