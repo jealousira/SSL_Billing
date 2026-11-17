@@ -648,7 +648,7 @@ const COL_DEFAULTS = {
   billing:   ['unitPrice','discount','amount'],
   receipt:   ['unitPrice','discount','amount'],
   po:        ['unitPrice','discount','amount'],
-  borrow:    ['assetCode','note']
+  borrow:    ['assetCode']
 };
 let colConfig = {};  // { docType: [colKeys] }
 const COL_CFG_KEY = 'billing_col_config_v1';
@@ -670,7 +670,7 @@ const DOC_TITLES = {
   billing: 'ใบส่งของ / ใบวางบิล',
   receipt: 'ใบกำกับภาษี / ใบเสร็จรับเงิน',
   po: 'ใบสั่งซื้อ / Purchase Order',
-  borrow: 'ใบยืมทรัพย์สิน / อุปกรณ์บริษัท'
+  borrow: 'ใบยืมของ'
 };
 const DOC_SUBTITLES = {
   billing: 'Delivery Note / Billing Note',
@@ -776,11 +776,7 @@ function renderItemsEditor(){
       </div>
       <textarea placeholder="${isBorrow?'ชื่อรายการที่ยืม':'ชื่อ + รายละเอียดสินค้า/บริการ'}" oninput="updItem(${i},'desc',this.value)">${escapeHtml(it.desc)}</textarea>
       ${isBorrow ? `
-      <div class="row2">
-        <div><label style="font-size:11px">จำนวน</label><input type="number" min="0" step="1" value="${it.qty}" oninput="updItem(${i},'qty',this.value)"></div>
-        <div><label style="font-size:11px">รหัสทรัพย์สิน</label><input type="text" value="${escapeHtml(it.assetCode||'')}" oninput="updItem(${i},'assetCode',this.value)" placeholder="เช่น IT-001"></div>
-      </div>
-      <div class="field" style="margin-top:7px"><label style="font-size:11px">หมายเหตุ / สภาพ</label><input type="text" value="${escapeHtml(it.note||'')}" oninput="updItem(${i},'note',this.value)" placeholder="เช่น ปกติ / มีรอยขีดข่วน"></div>
+      <div class="field" style="margin-top:7px"><label style="font-size:11px">รหัสทรัพย์สิน</label><input type="text" value="${escapeHtml(it.assetCode||'')}" oninput="updItem(${i},'assetCode',this.value)" placeholder="เช่น IT-001"></div>
       ` : `
       <div class="row2">
         <div><label style="font-size:11px">จำนวน</label><input type="number" min="0" step="1" value="${it.qty}" oninput="updItem(${i},'qty',this.value)"></div>
@@ -1580,12 +1576,13 @@ function render(){
     note:      { th:'หมายเหตุ', en:'Note', align:'l', val:it=>escapeHtml(it.note||'')||'<span style="color:#bbb">—</span>' }
   };
   const headExtra = activeCols.map(k=>`<th class="${colDefs[k].align}" style="width:${numW}%">${colDefs[k].th}<br><span style="font-weight:400;font-size:8pt">${colDefs[k].en}</span></th>`).join('');
-  const colspan = 3 + nExtra; // ลำดับ+รายละเอียด+จำนวน + คอลัมน์เสริม
+  const showQty = (docType!=='borrow'); // ใบยืมของไม่แสดงคอลัมน์จำนวน
+  const colspan = 2 + (showQty?1:0) + nExtra; // ลำดับ+รายละเอียด(+จำนวน)+คอลัมน์เสริม
   const itemRows = items.length ? items.map((it,i)=>`
     <tr>
       <td class="c">${i+1}</td>
       <td class="desc">${nl2br(it.desc)||'<span style="color:#bbb">—</span>'}</td>
-      <td class="c">${it.qty}</td>
+      ${showQty ? `<td class="c">${it.qty}</td>` : ''}
       ${activeCols.map(k=>`<td class="${colDefs[k].align}">${colDefs[k].val(it)}</td>`).join('')}
     </tr>`).join('') :
     `<tr><td colspan="${colspan}" style="text-align:center;color:#bbb;padding:18px">— ยังไม่มีรายการ —</td></tr>`;
@@ -1695,7 +1692,7 @@ function render(){
         <tr>
           <th class="c" style="width:7%">ลำดับ<br><span style="font-weight:400;font-size:8pt">Items</span></th>
           <th>รายละเอียด<br><span style="font-weight:400;font-size:8pt">Description</span></th>
-          <th class="c" style="width:9%">จำนวน<br><span style="font-weight:400;font-size:8pt">Qty</span></th>
+          ${showQty ? '<th class="c" style="width:9%">จำนวน<br><span style="font-weight:400;font-size:8pt">Qty</span></th>' : ''}
           ${headExtra}
         </tr>
       </thead>
